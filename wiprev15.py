@@ -9,7 +9,7 @@ from datetime import datetime
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 # MASUKKAN URL DARI GOOGLE APPS SCRIPT DI SINI!
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743QSzaDMItK2Npbdc4qcoGERdHM_R5Da-CvERDg7RbNampxysw/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/library/d/1c9uFUrANlF5BQGHpNfxZFroe81mb76-8Z3DyjfBoszmTVhzznkbt_mER/1"
 
 # MASUKKAN API KEY IMGBB DI SINI (Untuk simpan foto di cloud)
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
