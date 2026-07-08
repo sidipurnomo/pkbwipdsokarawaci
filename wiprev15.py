@@ -3,6 +3,7 @@ import pandas as pd
 import time
 import requests
 import json
+import base64  # Tambahan untuk konversi gambar
 from datetime import datetime
 
 # ==========================================
@@ -199,12 +200,21 @@ def save_data(df):
         return False
 
 def upload_foto_cloud(img_file):
+    """Fungsi upload ke ImgBB dengan Base64 Encoding"""
     url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
-    files = {"image": img_file.getvalue()}
+    
+    # Encode file ke base64 agar ImgBB dapat menerimanya dengan sempurna
+    payload = {
+        "image": base64.b64encode(img_file.getvalue()).decode("utf-8")
+    }
+    
     try:
-        res = requests.post(url, files=files, timeout=15)
+        res = requests.post(url, data=payload, timeout=20)
         if res.status_code == 200:
             return res.json()['data']['url']
+        else:
+            st.error(f"ImgBB Error: {res.text}")
+            return None
     except Exception as e:
         st.error(f"Gagal upload foto: {e}")
     return None
@@ -287,6 +297,7 @@ def render_update_form(kategori_filter):
                     st.image(foto_saat_ini, caption="📸 Foto Terakhir", use_container_width=True)
                 else:
                     st.warning("⚠️ Belum ada foto online.")
+                
                 uploaded_foto = st.file_uploader("Upload Bukti (Otomatis simpan ke Cloud)", type=['jpg', 'jpeg', 'png'])
 
             # Tombol Submit
@@ -296,7 +307,8 @@ def render_update_form(kategori_filter):
                 df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
                 df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-                if uploaded_foto:
+                # Proses Upload Foto
+                if uploaded_foto is not None:
                     with st.spinner("Mengupload foto ke server ImgBB..."):
                         link_foto = upload_foto_cloud(uploaded_foto)
                         if link_foto: 
