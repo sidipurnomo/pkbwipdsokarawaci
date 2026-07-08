@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import requests
 import json
-import base64  # Tambahan untuk konversi gambar
+import base64  # Untuk konversi gambar agar upload ImgBB 100% stabil
 from datetime import datetime
 
 # ==========================================
@@ -118,10 +118,6 @@ with st.sidebar:
     if menu_pilihan != st.session_state['last_menu']:
         st.session_state['last_activity'] = time.time()
         st.session_state['last_menu'] = menu_pilihan
-        
-    if st.button("🚪 LOGOUT SISTEM", use_container_width=True):
-        st.session_state['logged_in'] = False
-        st.rerun()
 
 # ==========================================
 # 🌐 INTEGRASI DATABASE CLOUD (GOOGLE SHEETS)
@@ -145,25 +141,18 @@ def load_data():
         # Pindahkan 'Tipe Kendaraan' agar berada setelah 'No PKB'
         if 'No PKB' in df.columns and 'Tipe Kendaraan' in df.columns:
             cols = list(df.columns)
-            cols.remove('Tipe Kendaraan') # Hapus sementara
-            idx_no_pkb = cols.index('No PKB') # Cari indeks 'No PKB'
-            cols.insert(idx_no_pkb + 1, 'Tipe Kendaraan') # Sisipkan setelahnya
-            df = df[cols] # Re-order DataFrame
+            cols.remove('Tipe Kendaraan') 
+            idx_no_pkb = cols.index('No PKB') 
+            cols.insert(idx_no_pkb + 1, 'Tipe Kendaraan') 
+            df = df[cols] 
             
         # Hitung Umur PKB
         if 'Tgl PKB' in df.columns:
-            # 1. Konversi ke datetime
             df['Tgl PKB'] = pd.to_datetime(df['Tgl PKB'], errors='coerce')
-            
-            # 2. SOLUSI: Paksa hilangkan zona waktu (tz) agar menjadi tz-naive
             df['Tgl PKB'] = df['Tgl PKB'].dt.tz_localize(None)
-            
-            # 3. Lakukan pengurangan dengan aman
             now = pd.Timestamp.now().normalize()
             df['Umur PKB (Hari)'] = (now - df['Tgl PKB']).dt.days
             df['Umur PKB (Hari)'] = df['Umur PKB (Hari)'].fillna(0).astype(int)
-            
-            # Kembalikan ke format string agar rapi saat ditampilkan
             df['Tgl PKB'] = df['Tgl PKB'].dt.strftime('%Y-%m-%d').fillna("-")
             
         return df
@@ -173,27 +162,18 @@ def load_data():
 
 def save_data(df):
     """Fungsi untuk menimpa data ke Google Sheets"""
-    # 1. Hapus kolom kalkulasi yang tidak ada di Google Sheet asal
     df_to_save = df.drop(columns=['Umur PKB (Hari)'], errors='ignore')
-    
-    # 2. Tangani nilai kosong (NaN/Null)
     df_to_save = df_to_save.fillna("-") 
-    
-    # 3. [PENTING] Konversi semua data menjadi string murni agar tidak error saat di-JSON-kan
     df_to_save = df_to_save.astype(str)
-    
-    # 4. Format array 2D untuk Google Sheets (Header + Baris Data)
     data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
     
     try:
-        # Kirim data ke API Google Sheets menggunakan request JSON
         response = requests.post(APPS_SCRIPT_URL, json=data_list, timeout=20)
         if response.status_code == 200:
-            # [PENTING] Hapus cache Streamlit supaya saat reload, ia menarik data terbaru!
             load_data.clear()
             return True
         else:
-            st.error(f"Gagal menyimpan data. Status Code: {response.status_code}")
+            st.error(f"Gagal menyimpan data ke Cloud. Status Code: {response.status_code}")
             return False
     except Exception as e:
         st.error(f"Error sinkronisasi ke Cloud: {e}")
@@ -202,12 +182,9 @@ def save_data(df):
 def upload_foto_cloud(img_file):
     """Fungsi upload ke ImgBB dengan Base64 Encoding"""
     url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
-    
-    # Encode file ke base64 agar ImgBB dapat menerimanya dengan sempurna
     payload = {
         "image": base64.b64encode(img_file.getvalue()).decode("utf-8")
     }
-    
     try:
         res = requests.post(url, data=payload, timeout=20)
         if res.status_code == 200:
@@ -220,10 +197,24 @@ def upload_foto_cloud(img_file):
     return None
 
 # ==========================================
-# 📊 DASHBOARD & APP LOGIC
+# 📊 DASHBOARD & APP LOGIC (STATE PERSISTENCE)
 # ==========================================
-# Load data utama
-df = load_data()
+# Tombol Paksa Sync ulang di paling bawah sidebar
+with st.sidebar:
+    st.markdown("---")
+    if st.button("🔄 REFRESH DATA DARI CLOUD", use_container_width=True):
+        load_data.clear()
+        st.session_state['df_data'] = load_data()
+        st.rerun()
+    if st.button("🚪 LOGOUT SISTEM", use_container_width=True):
+        st.session_state['logged_in'] = False
+        st.rerun()
+
+# Manajemen State agar UI Update Instan & Anti Tertimpa Data Lama karena Delay Cloud
+if 'df_data' not in st.session_state or st.session_state['df_data'] is None:
+    st.session_state['df_data'] = load_data()
+
+df = st.session_state['df_data']
 
 def style_umur_pkb(val):
     try:
@@ -291,45 +282,46 @@ def render_update_form(kategori_filter):
                 new_ket = st.text_area("Keterangan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')))
             
             with c2:
-                # Menghilangkan whitespace tak terduga dari database cloud
                 foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
                 
                 if "http" in foto_saat_ini.lower(): 
                     st.image(foto_saat_ini, caption="📸 Foto Terakhir di Server", use_container_width=True)
+                    # Link teks alternatif untuk menguji keaslian URL gambar jika gagal render
+                    st.markdown(f"🔗 [Klik di sini jika gambar tidak terbuka]({foto_saat_ini})")
                 else:
-                    st.warning(f"⚠️ Belum ada foto online. (Isi Kolom Sheet: '{foto_saat_ini}')")
+                    st.warning(f"⚠️ Belum ada foto online. (Isi database: '{foto_saat_ini}')")
                 
                 uploaded_foto = st.file_uploader("Upload Bukti Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'])
 
-            # Tombol Submit
+            # Tombol Submit Form
             if st.form_submit_button("💾 UPDATE DATA KE SERVER", use_container_width=True):
                 upload_sukses = True
                 link_foto = None
                 
-                # Jalankan upload hanya jika user memilih file baru
                 if uploaded_foto is not None:
                     with st.spinner("Mengupload foto ke server ImgBB..."):
                         link_foto = upload_foto_cloud(uploaded_foto)
                         if link_foto: 
-                            df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
+                            # LANGSUNG UPDATE MEMORI UTAMA (UI BERUBAH DETIK INI JUGA)
+                            st.session_state['df_data'].loc[st.session_state['df_data']['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
                         else:
-                            upload_sukses = False  # Blokir penyimpanan jika upload gagal
+                            upload_sukses = False 
                 
                 if upload_sukses:
-                    # Update data teks ke DataFrame lokal
-                    df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
-                    df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
-                    df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    # Simpan data teks ke memori lokal instan
+                    st.session_state['df_data'].loc[st.session_state['df_data']['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
+                    st.session_state['df_data'].loc[st.session_state['df_data']['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
+                    st.session_state['df_data'].loc[st.session_state['df_data']['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    # Kirim data update ke Google Sheets
+                    # Lempar data dari memori yang sudah matang ke Google Sheets secara background
                     with st.spinner("Menyinkronkan data dengan Google Sheets..."):
-                        sukses = save_data(df)
+                        sukses = save_data(st.session_state['df_data'])
                         
                     if sukses:
                         st.session_state['notif_sukses'] = f"✅ Data No. Pol {selected_nopol} berhasil diperbarui!"
                         st.rerun()
                 else:
-                    st.error("🛑 Sinkronisasi Dibatalkan karena upload gambar gagal. Silakan periksa pesan error ImgBB di atas.")
+                    st.error("🛑 Sinkronisasi Dibatalkan karena upload gambar gagal. Periksa pesan error di atas.")
 
 # Logic Menu Render
 if not df.empty:
