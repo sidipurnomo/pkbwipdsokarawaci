@@ -9,10 +9,10 @@ from datetime import datetime
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 # MASUKKAN URL DARI GOOGLE APPS SCRIPT DI SINI!
-APPS_SCRIPT_URL = "MASUKKAN_URL_WEB_APP_APPS_SCRIPT_ANDA_DISINI"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743QSzaDMItK2Npbdc4qcoGERdHM_R5Da-CvERDg7RbNampxysw/exec"
 
 # MASUKKAN API KEY IMGBB DI SINI (Untuk simpan foto di cloud)
-IMGBB_API_KEY = "MASUKKAN_API_KEY_IMGBB_ANDA_DISINI"
+IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # ==========================================
 # 🌟 LINK LOGO SUPER JERNIH (VECTOR/PNG)
