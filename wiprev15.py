@@ -141,6 +141,40 @@ def load_data():
             if col not in df.columns: 
                 df[col] = "-"
             
+        # Hitung Umur PKB (Bagian yang diperbaiki)
+        if 'Tgl PKB' in df.columns:
+            # 1. Konversi ke datetime
+            df['Tgl PKB'] = pd.to_datetime(df['Tgl PKB'], errors='coerce')
+            
+            # 2. SOLUSI: Paksa hilangkan zona waktu (tz) agar menjadi tz-naive
+            df['Tgl PKB'] = df['Tgl PKB'].dt.tz_localize(None)
+            
+            # 3. Lakukan pengurangan dengan aman
+            now = pd.Timestamp.now().normalize()
+            df['Umur PKB (Hari)'] = (now - df['Tgl PKB']).dt.days
+            df['Umur PKB (Hari)'] = df['Umur PKB (Hari)'].fillna(0).astype(int)
+            
+            # Kembalikan ke format string agar rapi saat ditampilkan
+            df['Tgl PKB'] = df['Tgl PKB'].dt.strftime('%Y-%m-%d').fillna("-")
+            
+        return df
+    except Exception as e:
+        st.error(f"Gagal koneksi ke database Cloud: {e}")
+        return pd.DataFrame()
+    try:
+        response = requests.get(APPS_SCRIPT_URL, timeout=15)
+        data = response.json()
+        if not data:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(data)
+        
+        # Validasi Kolom Kosong
+        kolom_wajib = ['Nama SA', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB']
+        for col in kolom_wajib:
+            if col not in df.columns: 
+                df[col] = "-"
+            
         # Hitung Umur PKB
         if 'Tgl PKB' in df.columns:
             df['Tgl PKB'] = pd.to_datetime(df['Tgl PKB'], errors='coerce')
