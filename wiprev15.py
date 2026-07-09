@@ -4,6 +4,7 @@ import time
 import requests
 import json
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
 # ==========================================
 # 🌟 KONFIGURASI CLOUD & API
@@ -24,7 +25,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS STYLING (HIJAU MUDA & MOBILE RESPONSIVE)
+# 🎨 CSS STYLING (HIJAU MUDA, BUBBLE & MOBILE RESPONSIVE)
 # ==========================================
 st.markdown("""
 <style>
@@ -65,17 +66,26 @@ st.markdown("""
         font-size: 14px !important; font-weight: 800 !important; margin: 0 !important; white-space: nowrap !important;
     }
     
-    /* Styling Metrik / Bubble Info (Hijau Muda Nyaman) */
+    /* 🫧 Styling Metrik Tampilan Gelembung (Bubble) */
     div[data-testid="metric-container"] {
-        background-color: #e8f5e9 !important; border-radius: 12px; padding: 15px 15px;
-        border: 1px solid #c8e6c9; border-bottom: 6px solid #81c784; 
-        box-shadow: 0px 4px 0px #4caf50, 0px 6px 10px rgba(0,0,0,0.1);
+        background: radial-gradient(circle at top left, #ffffff, #e8f5e9) !important;
+        border-radius: 50px !important; /* Membuatnya berbentuk gelembung */
+        padding: 20px 10px !important;
+        border: 2px solid #aed581 !important;
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.08), inset -3px -3px 10px rgba(0,0,0,0.04) !important;
+        text-align: center !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease-in-out;
     }
-    div[data-testid="metric-container"] label { color: #2e7d32 !important; font-weight: bold; }
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: #1b5e20 !important; }
     div[data-testid="metric-container"]:hover {
-        transform: translateY(-3px); box-shadow: 0px 6px 0px #388e3c;
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0px 8px 20px rgba(76, 175, 80, 0.3) !important;
     }
+    div[data-testid="metric-container"] label { color: #2e7d32 !important; font-weight: bold; font-size: 14px !important;}
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: #1b5e20 !important; font-weight: 900 !important;}
     
     /* Header Glowing Hijau */
     .title-glowing {
@@ -86,14 +96,12 @@ st.markdown("""
     
     /* 📱 OVERRIDE KHUSUS TAMPILAN HORIZONTAL DI HP */
     @media (max-width: 768px) {
-        /* Memaksa baris metrik menjadi horizontal scrollable */
         div[data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
-            padding-bottom: 15px; /* Spasi untuk scrollbar */
+            -webkit-overflow-scrolling: touch; 
+            padding-bottom: 15px; 
         }
-        /* Mengunci lebar minimum agar bubble tidak gepeng */
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
             min-width: 140px !important; 
             flex: 0 0 auto !important; 
@@ -101,6 +109,12 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ==========================================
+# 🔄 FITUR AUTOREFRESH (60 Detik)
+# ==========================================
+# Melakukan auto reload background setiap 60.000 ms (1 menit)
+st_autorefresh(interval=60000, key="data_autorefresh")
 
 # ==========================================
 # 🔐 SISTEM LOGIN & AUTO LOGOUT
@@ -154,9 +168,9 @@ with st.sidebar:
         st.session_state['last_menu'] = menu_pilihan
 
 # ==========================================
-# 🌐 INTEGRASI DATABASE CLOUD (GOOGLE SHEETS)
+# 🌐 INTEGRASI DATABASE CLOUD & LOGIKA MERGE
 # ==========================================
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=15) # Mengambil dari cloud per 15 detik jika diminta
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
@@ -166,6 +180,10 @@ def load_data():
         
         df = pd.DataFrame(data)
         
+        # 📌 LOGIKA 1: Hapus Duplikat, Ambil Data yang Terbaru (Paling Bawah)
+        if 'No Polisi' in df.columns:
+            df = df.drop_duplicates(subset=['No Polisi'], keep='last').reset_index(drop=True)
+
         kolom_wajib = ['Nama SA', 'Tipe Kendaraan', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB']
         for col in kolom_wajib:
             if col not in df.columns: 
@@ -190,6 +208,25 @@ def load_data():
     except Exception as e:
         st.error(f"Gagal koneksi ke database Cloud: {e}")
         return pd.DataFrame()
+
+# 📌 LOGIKA 2: Pertahankan Status Pekerjaan dari data lama jika database ditimpa
+def get_merged_data():
+    new_df = load_data()
+    
+    if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
+        old_df = st.session_state['df_data']
+        # Memastikan data tidak kosong sebelum me-merge
+        if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns and 'Status Pekerjaan' in old_df.columns:
+            # Buat dictionary (map) dari No Polisi ke Status Pekerjaan dari data yang ada di UI saat ini
+            old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan']))
+            
+            # Timpa kembali status dari data baru dengan status lama yang ada di UI
+            if 'Status Pekerjaan' in new_df.columns:
+                new_df['Status Pekerjaan'] = new_df.apply(
+                    lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), 
+                    axis=1
+                )
+    return new_df
 
 def save_data(df):
     df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Aksi WA Part', 'Aksi Email Part'], errors='ignore')
@@ -233,15 +270,14 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🔄 REFRESH DATA DARI CLOUD", use_container_width=True):
         load_data.clear()
-        st.session_state['df_data'] = load_data()
+        st.session_state['df_data'] = get_merged_data() # Update with merged data
         st.rerun()
     if st.button("LOGOUT", use_container_width=True):
         st.session_state['logged_in'] = False
         st.rerun()
 
-if 'df_data' not in st.session_state or st.session_state['df_data'] is None:
-    st.session_state['df_data'] = load_data()
-
+# Eksekusi Autoupdate/Load di state
+st.session_state['df_data'] = get_merged_data()
 df = st.session_state['df_data']
 
 def style_umur_pkb(val):
@@ -259,7 +295,7 @@ st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; c
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
 df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
 
-# Tampilkan Metrik Horizontal
+# 🫧 Tampilkan Metrik Gelembung (Bubble) Horizontal
 m1, m2, m3, m4 = st.columns(4)
 m1.metric(label="Total Unit WIP", value=f"{len(df_wip)} Unit")
 if not df_wip.empty and 'Kategori' in df_wip.columns:
@@ -306,7 +342,7 @@ def render_mobile_form():
 # Logika Form Inti (Dipakai di Desktop & Mobile)
 def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
     if selected_nopol and selected_nopol in list_nopol:
-        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[0]
+        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1] # Aman dari duplikat index
         kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
         
         st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
@@ -358,12 +394,10 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
 # Logic Menu Render & Tabel Kolom Aksi
 if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
-        # Tambahkan Link Email & WA khusus 'Menunggu Part'
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
-            # Pesan template dari tim Admin Service ke Admin Part
             nomor_wa_part = "+6289630028860" # GANTI DENGAN NOMOR ADMIN PART ASLI
-            email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id" # GANTI DENGAN EMAIL ASLI
+            email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id"
             
             df_display['Aksi WA Part'] = df_display.apply(
                 lambda row: f"https://wa.me/{nomor_wa_part}?text=Halo%20Admin%20Part,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
