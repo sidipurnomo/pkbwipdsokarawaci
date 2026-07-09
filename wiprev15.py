@@ -109,13 +109,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# ==========================================
-# 🔄 FITUR AUTOREFRESH (60 Detik)
-# ==========================================
-# Melakukan auto reload background setiap 60.000 ms (1 menit)
-st_autorefresh(interval=60000, key="data_autorefresh")
-
 # ==========================================
 # 🔐 SISTEM LOGIN & AUTO LOGOUT
 # ==========================================
