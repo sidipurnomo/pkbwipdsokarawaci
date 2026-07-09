@@ -4,7 +4,6 @@ import time
 import requests
 import json
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
 
 # ==========================================
 # 🌟 KONFIGURASI CLOUD & API
