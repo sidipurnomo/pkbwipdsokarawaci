@@ -68,19 +68,17 @@ st.markdown("""
     /* 🫧 Styling Metrik Tampilan Gelembung (Bubble) - DIBUAT SIMETRIS */
     div[data-testid="metric-container"] {
         background: radial-gradient(circle at top left, #ffffff, #e8f5e9) !important;
-        border-radius: 35px !important; /* Membuat ujung membulat halus */
+        border-radius: 35px !important; 
         padding: 20px 10px !important;
         border: 2px solid #aed581 !important;
         box-shadow: 5px 5px 15px rgba(0,0,0,0.08), inset -3px -3px 10px rgba(0,0,0,0.04) !important;
         text-align: center !important;
         
-        /* Logika Flexbox untuk mengatur konten tepat di tengah */
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
         
-        /* Memaksa dimensi agar simetris di setiap kolom */
         min-height: 150px !important; 
         width: 100% !important;
         transition: all 0.3s ease-in-out;
@@ -118,11 +116,12 @@ st.markdown("""
     .title-glowing {
         text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3);
         font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center;
-        flex-wrap: wrap; /* Agar aman di HP */
+        flex-wrap: wrap;
     }
     
-    /* 📱 OVERRIDE KHUSUS TAMPILAN HORIZONTAL DI HP */
+    /* 📱 OVERRIDE KHUSUS TAMPILAN HP (RESPONSIVE) */
     @media (max-width: 768px) {
+        /* Metrik Horizontal */
         div[data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
@@ -130,9 +129,17 @@ st.markdown("""
             padding-bottom: 15px; 
         }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            min-width: 160px !important; /* Disesuaikan agar bubble tidak gepeng di HP */
+            min-width: 160px !important; 
             flex: 0 0 auto !important; 
         }
+        
+        /* Memaksa Tampilan Form Login & Input agar full-width dan nyaman di HP */
+        .st-emotion-cache-1jicfl2 { width: 100% !important; padding: 1rem !important; }
+        div[data-testid="stForm"] { border-radius: 15px !important; }
+        
+        /* Mengecilkan judul di HP agar proporsional */
+        .title-glowing { font-size: 1.5rem !important; }
+        .title-glowing img { height: 30px !important; margin-right: 10px !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -155,18 +162,21 @@ def render_login():
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown(f"<h1 class='title-glowing'><img src='{DAIHATSU_LOGO_PNG}' style='height: 40px; margin-right: 15px;'> PKB WIP DSO KARAWACI</h1>", unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    # Grid responsif: desktop 1-2-1 (di tengah), mobile otomatis 1 kolom 100%
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.form("login_form"):
+            st.markdown("<h3 style='text-align: center;'>🔐 Login Dashboard</h3>", unsafe_allow_html=True)
             username = st.text_input("👤 Username")
             password = st.text_input("🔑 Password", type="password")
-            if st.form_submit_button("LOGIN", use_container_width=True):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.form_submit_button("LOGIN KE SISTEM", use_container_width=True):
                 if username == "dsokarawaci" and password == "adminkarawaci":
                     st.session_state['logged_in'] = True
                     st.session_state['last_activity'] = time.time() 
                     st.rerun()
                 else:
-                    st.error("⚠️ Akses Ditolak!")
+                    st.error("⚠️ Username atau Password Salah!")
 
 if not st.session_state['logged_in']:
     render_login()
@@ -180,7 +190,7 @@ with st.sidebar:
     st.markdown("<h3 style='text-align:center; color:#2e7d32;'>Astra Daihatsu<br>Karawaci</h3>", unsafe_allow_html=True)
     menu_pilihan = st.radio(
         "Pilih Halaman:", 
-        ["📊 SEMUA WIP", "📱 TAMPILAN MOBILE", "🛠️ ANTREAN GR", "📝 UPDATE GR", "🔨 ANTREAN BR", "📝 UPDATE BR", "✅ RIWAYAT SELESAI"], 
+        ["📊 SEMUA WIP", "📱 TAMPILAN MOBILE", "🛠️ ANTREAN GR", "📝 UPDATE GR", "🔨 ANTREAN BR", "📝 UPDATE BR", "✅ RIWAYAT SELESAI", "➕ TAMBAH MOBIL TAMU"], 
         label_visibility="collapsed"
     )
     
@@ -439,5 +449,69 @@ if not df.empty:
         render_update_form("Body Repair")
     elif menu_pilihan == "✅ RIWAYAT SELESAI": 
         st.dataframe(df_selesai.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_selesai.columns else []), use_container_width=True, hide_index=True)
+        
+    # ==========================================
+    # ➕ MENU TAMBAH KENDARAAN TAMU / MANUAL
+    # ==========================================
+    elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
+        st.markdown("#### 🚗 Input Kendaraan Tamu / Manual")
+        st.info("Fitur ini digunakan untuk memasukkan kendaraan yang belum terdaftar PKB (Non-PKB).")
+        
+        with st.form("form_input_tamu"):
+            c1, c2 = st.columns(2)
+            with c1:
+                nopol_baru = st.text_input("No Polisi *").strip().upper()
+                tipe_baru = st.text_input("Tipe Kendaraan *").strip()
+                kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
+            with c2:
+                warna_baru = st.text_input("Warna Kendaraan").strip()
+                foto_baru = st.file_uploader("Upload Foto Kendaraan", type=['jpg', 'jpeg', 'png'])
+            
+            st.markdown("*Wajib diisi")
+            
+            if st.form_submit_button("💾 SIMPAN DATA KENDARAAN", use_container_width=True):
+                if not nopol_baru or not tipe_baru:
+                    st.error("⚠️ No Polisi dan Tipe Kendaraan wajib diisi!")
+                else:
+                    link_foto = "-"
+                    upload_sukses = True
+                    
+                    if foto_baru is not None:
+                        with st.spinner("Mengupload foto..."):
+                            link = upload_foto_cloud(foto_baru)
+                            if link: link_foto = link
+                            else: upload_sukses = False
+                    
+                    if upload_sukses:
+                        # Membuat dictionary kosong sesuai struktur kolom database
+                        new_data = {col: "-" for col in df.columns}
+                        
+                        # Menggabungkan tipe dan warna untuk disimpan di kolom Tipe Kendaraan
+                        gabungan_tipe = f"{tipe_baru} ({warna_baru})" if warna_baru else tipe_baru
+                        
+                        # Mengisi data
+                        new_data['No Polisi'] = nopol_baru
+                        new_data['Tipe Kendaraan'] = gabungan_tipe
+                        new_data['Kategori'] = kategori_baru
+                        new_data['Status Pekerjaan'] = "Menunggu Pekerjaan" if kategori_baru == "General Repair" else "Antrian Pekerjaan"
+                        new_data['Tgl PKB'] = datetime.now().strftime("%Y-%m-%d")
+                        new_data['Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        new_data['Nama Customer'] = "TAMU / NON-PKB"
+                        new_data['No PKB'] = "BELUM ADA"
+                        new_data['Foto PKB'] = link_foto
+                        
+                        # Menambahkan baris baru ke Dataframe
+                        df_new_row = pd.DataFrame([new_data])
+                        df_updated = pd.concat([df, df_new_row], ignore_index=True)
+                        
+                        st.session_state['df_data'] = df_updated
+                        with st.spinner("Menyinkronkan ke Cloud..."):
+                            sukses = save_data(df_updated)
+                        
+                        if sukses:
+                            st.session_state['notif_sukses'] = f"✅ Kendaraan Tamu {nopol_baru} berhasil didaftarkan!"
+                            st.rerun()
+                    else:
+                        st.error("🛑 Gagal menyimpan karena error unggah foto.")
 else:
     st.info("Loading data atau database masih kosong.")
