@@ -108,6 +108,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 # ==========================================
 # 🔐 SISTEM LOGIN & AUTO LOGOUT
 # ==========================================
@@ -162,7 +163,7 @@ with st.sidebar:
 # ==========================================
 # 🌐 INTEGRASI DATABASE CLOUD & LOGIKA MERGE
 # ==========================================
-@st.cache_data(ttl=15) # Mengambil dari cloud per 15 detik jika diminta
+@st.cache_data(ttl=15)
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
@@ -207,12 +208,9 @@ def get_merged_data():
     
     if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
         old_df = st.session_state['df_data']
-        # Memastikan data tidak kosong sebelum me-merge
         if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns and 'Status Pekerjaan' in old_df.columns:
-            # Buat dictionary (map) dari No Polisi ke Status Pekerjaan dari data yang ada di UI saat ini
             old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan']))
             
-            # Timpa kembali status dari data baru dengan status lama yang ada di UI
             if 'Status Pekerjaan' in new_df.columns:
                 new_df['Status Pekerjaan'] = new_df.apply(
                     lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), 
@@ -262,7 +260,7 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🔄 REFRESH DATA DARI CLOUD", use_container_width=True):
         load_data.clear()
-        st.session_state['df_data'] = get_merged_data() # Update with merged data
+        st.session_state['df_data'] = get_merged_data()
         st.rerun()
     if st.button("LOGOUT", use_container_width=True):
         st.session_state['logged_in'] = False
@@ -284,20 +282,23 @@ if 'notif_sukses' in st.session_state:
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
-df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
-df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
+# ---------------------------------------------------------
+# 🌟 FUNGSI BUBBLE METRIK (Untuk dipanggil di setiap tab)
+# ---------------------------------------------------------
+def tampilkan_bubble_metrik():
+    df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
+    df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
 
-# 🫧 Tampilkan Metrik Gelembung (Bubble) Horizontal
-m1, m2, m3, m4 = st.columns(4)
-m1.metric(label="Total Unit WIP", value=f"{len(df_wip)} Unit")
-if not df_wip.empty and 'Kategori' in df_wip.columns:
-    m2.metric(label="Antrean GR", value=f"{len(df_wip[df_wip['Kategori'] == 'General Repair'])} Unit")
-    m3.metric(label="Antrean BR", value=f"{len(df_wip[df_wip['Kategori'] == 'Body Repair'])} Unit")
-else:
-    m2.metric(label="Antrean GR", value="0 Unit")
-    m3.metric(label="Antrean BR", value="0 Unit")
-m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
-st.markdown("<br>", unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(label="Total Unit WIP", value=f"{len(df_wip)} Unit")
+    if not df_wip.empty and 'Kategori' in df_wip.columns:
+        m2.metric(label="Antrean GR", value=f"{len(df_wip[df_wip['Kategori'] == 'General Repair'])} Unit")
+        m3.metric(label="Antrean BR", value=f"{len(df_wip[df_wip['Kategori'] == 'Body Repair'])} Unit")
+    else:
+        m2.metric(label="Antrean GR", value="0 Unit")
+        m3.metric(label="Antrean BR", value="0 Unit")
+    m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
+    st.markdown("<br>", unsafe_allow_html=True)
 
 # Fungsi Render Form General / BR
 def render_update_form(kategori_filter):
@@ -315,7 +316,7 @@ def render_update_form(kategori_filter):
 
     execute_form_logic(selected_nopol, list_nopol, kategori_filter)
 
-# Fungsi Render Khusus Tampilan Handphone (Pencarian Tab & Ringkas)
+# Fungsi Render Khusus Tampilan Handphone
 def render_mobile_form():
     st.markdown("#### 📱 Menu Update Mobile")
     if df.empty: return st.warning("Database kosong.")
@@ -331,10 +332,10 @@ def render_mobile_form():
     selected_nopol = nopol_list if nopol_list else nopol_man
     execute_form_logic(selected_nopol, list_nopol, None)
 
-# Logika Form Inti (Dipakai di Desktop & Mobile)
+# Logika Form Inti
 def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
     if selected_nopol and selected_nopol in list_nopol:
-        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1] # Aman dari duplikat index
+        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1]
         kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
         
         st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
@@ -383,8 +384,17 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                 else:
                     st.error("🛑 Gagal menyimpan karena error unggah foto.")
 
-# Logic Menu Render & Tabel Kolom Aksi
+# ==========================================
+# 🔀 MENU ROUTING & TABEL DATA
+# ==========================================
 if not df.empty:
+    
+    # 🔥 Panggil fungsi Gelembung di sini agar 100% muncul di semua tab menu
+    tampilkan_bubble_metrik()
+    
+    df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if 'Status Pekerjaan' in df.columns else df
+    df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if 'Status Pekerjaan' in df.columns else pd.DataFrame()
+    
     if menu_pilihan == "📊 SEMUA WIP": 
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
