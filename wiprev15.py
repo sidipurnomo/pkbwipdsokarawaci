@@ -125,7 +125,7 @@ def render_login():
         with st.form("login_form"):
             username = st.text_input("👤 Username")
             password = st.text_input("🔑 Password", type="password")
-            if st.form_submit_button("🚀 LOGIN KE SISTEM", use_container_width=True):
+            if st.form_submit_button("LOGIN", use_container_width=True):
                 if username == "dsokarawaci" and password == "adminkarawaci":
                     st.session_state['logged_in'] = True
                     st.session_state['last_activity'] = time.time() 
@@ -235,7 +235,7 @@ with st.sidebar:
         load_data.clear()
         st.session_state['df_data'] = load_data()
         st.rerun()
-    if st.button("🚪 LOGOUT SISTEM", use_container_width=True):
+    if st.button("LOGOUT", use_container_width=True):
         st.session_state['logged_in'] = False
         st.rerun()
 
