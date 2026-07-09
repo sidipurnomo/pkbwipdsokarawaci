@@ -179,3 +179,205 @@ def load_data():
             now = pd.Timestamp.now().normalize()
             df['Umur PKB (Hari)'] = (now - df['Tgl PKB']).dt.days.fillna(0).astype(int)
             df['Tgl PKB'] = df['Tgl PKB'].dt.strftime('%Y-%m-%d').fillna("-")
+            
+        return df
+    except Exception as e:
+        st.error(f"Gagal koneksi ke database: {e}")
+        return pd.DataFrame()
+
+def save_data(df):
+    df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Aksi Admin Part'], errors='ignore').fillna("-").astype(str)
+    data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
+    try:
+        response = requests.post(APPS_SCRIPT_URL, json=data_list, timeout=20)
+        if response.status_code == 200:
+            load_data.clear()
+            return True
+        st.error("Gagal menyimpan data ke Cloud.")
+        return False
+    except Exception as e:
+        st.error(f"Error sinkronisasi: {e}")
+        return False
+
+def upload_foto_cloud(img_file):
+    url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
+    files = {"image": (img_file.name, img_file.getvalue(), img_file.type)}
+    try:
+        res = requests.post(url, files=files, timeout=25)
+        data = res.json()
+        if res.status_code == 200 and 'data' in data: return data['data']['url']
+        st.error(f"❌ ImgBB Gagal: {data.get('error', {}).get('message', res.text)}")
+    except Exception as e:
+        st.error(f"❌ Koneksi upload gagal: {e}")
+    return None
+
+# ==========================================
+# 📊 LOGIC & STATE PERSISTENCE
+# ==========================================
+with st.sidebar:
+    st.markdown("---")
+    if st.button("🔄 REFRESH DATA", use_container_width=True):
+        load_data.clear()
+        st.session_state['df_data'] = load_data()
+        st.rerun()
+    if st.button("🚪 LOGOUT", use_container_width=True):
+        st.session_state['logged_in'] = False
+        st.rerun()
+
+if 'df_data' not in st.session_state or st.session_state['df_data'] is None:
+    st.session_state['df_data'] = load_data()
+
+df = st.session_state['df_data']
+
+def style_umur_pkb(val):
+    try:
+        if int(val) > 60: return 'color: #ff4b4b; font-weight: bold;'
+    except: pass
+    return ''
+
+if 'notif_sukses' in st.session_state:
+    st.success(st.session_state['notif_sukses'])
+    del st.session_state['notif_sukses']
+
+# Header Horizontal
+st.markdown(f"""
+    <div class='header-horizontal' style='margin-bottom: 15px;'>
+        <img src='{DAIHATSU_LOGO_PNG}' style='height: 28px; margin-right: 12px;'>
+        <h2 style='margin: 0; font-size: 22px; font-weight: bold;'>Live Service Dashboard</h2>
+    </div>
+""", unsafe_allow_html=True)
+
+# Pisahkan Data
+df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
+df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
+
+# Tampilkan Metrik Secara Horizontal Menggunakan HTML/CSS Custom
+wip_count = len(df_wip)
+gr_count = len(df_wip[df_wip['Kategori'] == 'General Repair']) if 'Kategori' in df_wip.columns else 0
+br_count = len(df_wip[df_wip['Kategori'] == 'Body Repair']) if 'Kategori' in df_wip.columns else 0
+selesai_count = len(df_selesai)
+
+st.markdown(f"""
+    <div class="metric-container">
+        <div class="metric-card">
+            <div class="metric-title">🔴 Total WIP</div>
+            <div class="metric-value">{wip_count}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">🔧 Antrean GR</div>
+            <div class="metric-value">{gr_count}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">🔨 Antrean BR</div>
+            <div class="metric-value">{br_count}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">✅ Selesai</div>
+            <div class="metric-value">{selesai_count}</div>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+def render_update_form(kategori_filter):
+    kategori_label = kategori_filter if kategori_filter else "Semua Kategori"
+    st.markdown(f"#### 🔎 Pencarian Kendaraan ({kategori_label})")
+    
+    if df.empty: return st.warning("Data database kosong atau gagal dimuat.")
+    if 'No Polisi' not in df.columns: return st.error("Kolom 'No Polisi' tidak ditemukan.")
+
+    # Filter Kategori jika diperlukan
+    df_filter = df[df['Kategori'] == kategori_filter] if kategori_filter else df
+    list_nopol = df_filter['No Polisi'].dropna().unique().tolist()
+    
+    metode_cari = st.radio("Metode Pencarian:", ["Pilih dari List", "Ketik Manual"], horizontal=True)
+    if metode_cari == "Pilih dari List":
+        selected_nopol = st.selectbox("Pilih No Polisi", [""] + list_nopol)
+    else:
+        selected_nopol = st.text_input("Ketik No Polisi (Tanpa Spasi)").strip().upper()
+
+    if selected_nopol and selected_nopol in list_nopol:
+        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[0]
+        nama_cust = data_kendaraan.get('Nama Customer', '-')
+        tipe_kend = data_kendaraan.get('Tipe Kendaraan', '-')
+        kat_kend = data_kendaraan.get('Kategori', 'General Repair')
+        
+        st.success(f"🎯 Data: **{nama_cust}** | **{selected_nopol}** | **{tipe_kend}**")
+        
+        with st.form("form_update_data"):
+            c1, c2 = st.columns(2)
+            with c1:
+                if kat_kend == "Body Repair":
+                    opsi_status = ["Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul", "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan", "Menunggu Part", "Quality Control", "Selesai"]
+                else:
+                    opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
+                
+                curr_status = str(data_kendaraan.get('Status Pekerjaan', ''))
+                idx = opsi_status.index(curr_status) if curr_status in opsi_status else 0
+                new_status = st.selectbox("Progress Baru:", opsi_status, index=idx)
+                new_ket = st.text_area("Keterangan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')))
+            
+            with c2:
+                foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
+                if foto_saat_ini.startswith("http"): 
+                    st.image(foto_saat_ini, caption="📸 Foto Terakhir di Server", use_container_width=True)
+                else:
+                    st.warning("⚠️ Belum ada foto online.")
+                
+                uploaded_foto = st.file_uploader("Upload Bukti Baru (Cloud)", type=['jpg', 'jpeg', 'png'])
+
+            if st.form_submit_button("💾 UPDATE DATA KE SERVER", use_container_width=True):
+                upload_sukses = True
+                if uploaded_foto is not None:
+                    with st.spinner("Mengupload foto..."):
+                        link_foto = upload_foto_cloud(uploaded_foto)
+                        if link_foto: df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
+                        else: upload_sukses = False 
+                
+                if upload_sukses:
+                    df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
+                    df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
+                    df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    st.session_state['df_data'] = df
+                    
+                    with st.spinner("Menyinkronkan data dengan Google Sheets..."):
+                        if save_data(df):
+                            st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui!"
+                            st.rerun()
+                else:
+                    st.error("🛑 Sinkronisasi dibatalkan. Gagal mengunggah foto.")
+
+# Logic Menu Render
+if not df.empty:
+    if menu_pilihan == "📊 SEMUA WIP": 
+        # Tambahkan logika Link Notifikasi ke Admin Part khusus yang statusnya "Menunggu Part"
+        if 'Status Pekerjaan' in df_wip.columns and 'No Polisi' in df_wip.columns:
+            # Menggunakan WA Link. Jika ingin Email ubah ke: mailto:{EMAIL_ADMIN_PART}?subject=Info Part {x['No Polisi']}
+            df_wip['Aksi Admin Part'] = df_wip.apply(
+                lambda x: f"https://wa.me/{NO_WA_ADMIN_PART}?text=Halo%20Admin%20Part,%20mohon%20info%20ketersediaan%20part%20untuk%20kendaraan%20dengan%20No%20Polisi:%20{x['No Polisi']}" if x['Status Pekerjaan'] == 'Menunggu Part' else "-", 
+                axis=1
+            )
+        
+        st.dataframe(
+            df_wip.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []),
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Aksi Admin Part": st.column_config.LinkColumn("Hubungi Admin (Klik)", display_text="Chat Admin Part")
+            }
+        )
+    elif menu_pilihan == "🛠️ ANTREAN GR": 
+        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'].style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
+    elif menu_pilihan == "📝 UPDATE GR": 
+        render_update_form("General Repair")
+    elif menu_pilihan == "🔨 ANTREAN BR": 
+        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'].style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
+    elif menu_pilihan == "📝 UPDATE BR": 
+        render_update_form("Body Repair")
+    elif menu_pilihan == "📱 TAMPILAN HP":
+        # Render form tanpa filter (Gabungan GR & BR, ideal untuk mekanik/SA di HP)
+        render_update_form(None)
+    elif menu_pilihan == "✅ RIWAYAT SELESAI": 
+        st.dataframe(df_selesai.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_selesai.columns else []), use_container_width=True, hide_index=True)
+else:
+    st.info("Loading data atau data masih kosong.")
