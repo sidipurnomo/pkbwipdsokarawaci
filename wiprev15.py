@@ -362,7 +362,7 @@ if not df.empty:
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
             # Pesan template dari tim Admin Service ke Admin Part
-            nomor_wa_part = "6289630028860" # GANTI DENGAN NOMOR ADMIN PART ASLI
+            nomor_wa_part = "+6289630028860" # GANTI DENGAN NOMOR ADMIN PART ASLI
             email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id" # GANTI DENGAN EMAIL ASLI
             
             df_display['Aksi WA Part'] = df_display.apply(
