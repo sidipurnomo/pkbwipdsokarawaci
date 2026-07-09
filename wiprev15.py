@@ -362,8 +362,8 @@ if not df.empty:
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
             # Pesan template dari tim Admin Service ke Admin Part
-            nomor_wa_part = "6281234567890" # GANTI DENGAN NOMOR ADMIN PART ASLI
-            email_part = "admin.part@astra.co.id" # GANTI DENGAN EMAIL ASLI
+            nomor_wa_part = "6289630028860" # GANTI DENGAN NOMOR ADMIN PART ASLI
+            email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id" # GANTI DENGAN EMAIL ASLI
             
             df_display['Aksi WA Part'] = df_display.apply(
                 lambda row: f"https://wa.me/{nomor_wa_part}?text=Halo%20Admin%20Part,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
