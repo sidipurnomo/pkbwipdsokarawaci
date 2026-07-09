@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS STYLING (HIJAU MUDA, BUBBLE & MOBILE RESPONSIVE)
+# 🎨 CSS STYLING (HIJAU MUDA, BUBBLE SIMETRIS & MOBILE RESPONSIVE)
 # ==========================================
 st.markdown("""
 <style>
@@ -65,26 +65,54 @@ st.markdown("""
         font-size: 14px !important; font-weight: 800 !important; margin: 0 !important; white-space: nowrap !important;
     }
     
-    /* 🫧 Styling Metrik Tampilan Gelembung (Bubble) */
+    /* 🫧 Styling Metrik Tampilan Gelembung (Bubble) - DIBUAT SIMETRIS */
     div[data-testid="metric-container"] {
         background: radial-gradient(circle at top left, #ffffff, #e8f5e9) !important;
-        border-radius: 50px !important; /* Membuatnya berbentuk gelembung */
+        border-radius: 35px !important; /* Membuat ujung membulat halus */
         padding: 20px 10px !important;
         border: 2px solid #aed581 !important;
         box-shadow: 5px 5px 15px rgba(0,0,0,0.08), inset -3px -3px 10px rgba(0,0,0,0.04) !important;
         text-align: center !important;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        
+        /* Logika Flexbox untuk mengatur konten tepat di tengah */
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        
+        /* Memaksa dimensi agar simetris di setiap kolom */
+        min-height: 150px !important; 
+        width: 100% !important;
         transition: all 0.3s ease-in-out;
     }
     div[data-testid="metric-container"]:hover {
         transform: translateY(-5px) scale(1.02);
         box-shadow: 0px 8px 20px rgba(76, 175, 80, 0.3) !important;
     }
-    div[data-testid="metric-container"] label { color: #2e7d32 !important; font-weight: bold; font-size: 14px !important;}
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: #1b5e20 !important; font-weight: 900 !important;}
+    
+    /* Menyelaraskan teks judul dan angka di dalam gelembung */
+    div[data-testid="metric-container"] > div {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    div[data-testid="metric-container"] label { 
+        color: #2e7d32 !important; 
+        font-weight: 800 !important; 
+        font-size: 15px !important;
+        text-align: center !important;
+        width: 100% !important;
+        margin-bottom: 8px;
+    }
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
+        color: #1b5e20 !important; 
+        font-weight: 900 !important; 
+        font-size: 28px !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
     
     /* Header Glowing Hijau */
     .title-glowing {
@@ -102,7 +130,7 @@ st.markdown("""
             padding-bottom: 15px; 
         }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            min-width: 140px !important; 
+            min-width: 160px !important; /* Disesuaikan agar bubble tidak gepeng di HP */
             flex: 0 0 auto !important; 
         }
     }
@@ -163,7 +191,7 @@ with st.sidebar:
 # ==========================================
 # 🌐 INTEGRASI DATABASE CLOUD & LOGIKA MERGE
 # ==========================================
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=15) 
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
@@ -173,7 +201,6 @@ def load_data():
         
         df = pd.DataFrame(data)
         
-        # 📌 LOGIKA 1: Hapus Duplikat, Ambil Data yang Terbaru (Paling Bawah)
         if 'No Polisi' in df.columns:
             df = df.drop_duplicates(subset=['No Polisi'], keep='last').reset_index(drop=True)
 
@@ -202,7 +229,6 @@ def load_data():
         st.error(f"Gagal koneksi ke database Cloud: {e}")
         return pd.DataFrame()
 
-# 📌 LOGIKA 2: Pertahankan Status Pekerjaan dari data lama jika database ditimpa
 def get_merged_data():
     new_df = load_data()
     
@@ -260,13 +286,12 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🔄 REFRESH DATA DARI CLOUD", use_container_width=True):
         load_data.clear()
-        st.session_state['df_data'] = get_merged_data()
+        st.session_state['df_data'] = get_merged_data() 
         st.rerun()
     if st.button("LOGOUT", use_container_width=True):
         st.session_state['logged_in'] = False
         st.rerun()
 
-# Eksekusi Autoupdate/Load di state
 st.session_state['df_data'] = get_merged_data()
 df = st.session_state['df_data']
 
@@ -280,27 +305,25 @@ if 'notif_sukses' in st.session_state:
     st.success(st.session_state['notif_sukses'])
     del st.session_state['notif_sukses']
 
+# 🫧 METRIK GELEMBUNG AKAN TAMPIL DI SEMUA TAB/MENU 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 🌟 FUNGSI BUBBLE METRIK (Untuk dipanggil di setiap tab)
-# ---------------------------------------------------------
-def tampilkan_bubble_metrik():
-    df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
-    df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
+df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
+df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric(label="Total Unit WIP", value=f"{len(df_wip)} Unit")
-    if not df_wip.empty and 'Kategori' in df_wip.columns:
-        m2.metric(label="Antrean GR", value=f"{len(df_wip[df_wip['Kategori'] == 'General Repair'])} Unit")
-        m3.metric(label="Antrean BR", value=f"{len(df_wip[df_wip['Kategori'] == 'Body Repair'])} Unit")
-    else:
-        m2.metric(label="Antrean GR", value="0 Unit")
-        m3.metric(label="Antrean BR", value="0 Unit")
-    m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
-    st.markdown("<br>", unsafe_allow_html=True)
+m1, m2, m3, m4 = st.columns(4)
+m1.metric(label="Total Unit WIP", value=f"{len(df_wip)} Unit")
+if not df_wip.empty and 'Kategori' in df_wip.columns:
+    m2.metric(label="Antrean GR", value=f"{len(df_wip[df_wip['Kategori'] == 'General Repair'])} Unit")
+    m3.metric(label="Antrean BR", value=f"{len(df_wip[df_wip['Kategori'] == 'Body Repair'])} Unit")
+else:
+    m2.metric(label="Antrean GR", value="0 Unit")
+    m3.metric(label="Antrean BR", value="0 Unit")
+m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
 
-# Fungsi Render Form General / BR
+# Pembatas visual antara gelembung dan isi tabel/form
+st.markdown("<hr style='border: 1px solid #dcedc8; margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
+
 def render_update_form(kategori_filter):
     st.markdown(f"#### 🔎 Pencarian Kendaraan ({kategori_filter})")
     if df.empty: return st.warning("Database kosong.")
@@ -316,7 +339,6 @@ def render_update_form(kategori_filter):
 
     execute_form_logic(selected_nopol, list_nopol, kategori_filter)
 
-# Fungsi Render Khusus Tampilan Handphone
 def render_mobile_form():
     st.markdown("#### 📱 Menu Update Mobile")
     if df.empty: return st.warning("Database kosong.")
@@ -332,10 +354,9 @@ def render_mobile_form():
     selected_nopol = nopol_list if nopol_list else nopol_man
     execute_form_logic(selected_nopol, list_nopol, None)
 
-# Logika Form Inti
 def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
     if selected_nopol and selected_nopol in list_nopol:
-        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1]
+        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1] 
         kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
         
         st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
@@ -384,21 +405,11 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                 else:
                     st.error("🛑 Gagal menyimpan karena error unggah foto.")
 
-# ==========================================
-# 🔀 MENU ROUTING & TABEL DATA
-# ==========================================
 if not df.empty:
-    
-    # 🔥 Panggil fungsi Gelembung di sini agar 100% muncul di semua tab menu
-    tampilkan_bubble_metrik()
-    
-    df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if 'Status Pekerjaan' in df.columns else df
-    df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if 'Status Pekerjaan' in df.columns else pd.DataFrame()
-    
     if menu_pilihan == "📊 SEMUA WIP": 
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
-            nomor_wa_part = "+6289630028860" # GANTI DENGAN NOMOR ADMIN PART ASLI
+            nomor_wa_part = "+6289630028860" 
             email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id"
             
             df_display['Aksi WA Part'] = df_display.apply(
