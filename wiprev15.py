@@ -4,12 +4,21 @@ import time
 import requests
 import json
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # ==========================================
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743QSzaDMItK2Npbdc4qcoGERdHM_R5Da-CvERDg7RbNampxysw/exec"
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
+
+# Konfigurasi Notifikasi Otomatis (Ganti dengan data milikmu)
+SENDER_EMAIL = "sidi.purnomo87@gmail.com"
+SENDER_APP_PASSWORD = "Irma@8587" # Gunakan App Password, bukan password biasa
+WA_API_URL = " https://graph.facebook.com/v25.0/1295490290304734/messages" # Contoh menggunakan Fonnte
+WA_API_TOKEN = "EAAOrTb3X3qoBR7a3I4BhKFvC23ilTZCEnZC9JuXbznMKK4nqgVSMdD4h6ft76ZBUjIAsj8oXCJf9kSqT9R2yz4ht8eSDC7gFw9dlxoVKSZCcukI3qusqJQbICJ8KCpuJmxOcwXEGF3eX6ZBnqpUZBcWdVai2Xp12aIkDbZAwv2GXUZAdCNpJ1Ny1WkIkmzsB6CZC7M1vMgZBKZAMOLOr8yRHgXXOqeFNPJ8xydrm6xNn9ZBuj73wZClcgXZBYWouHQr3beLsIoiJc062UscuLW9JhuF5LONEDYzZAk4HX9Q"
 
 # ==========================================
 # 🌟 LINK LOGO SUPER JERNIH (VECTOR/PNG)
@@ -28,17 +37,12 @@ st.set_page_config(
 # ==========================================
 st.markdown("""
 <style>
-    /* Background utama aplikasi */
     .stApp { background-color: #f7fdf7 !important; }
-    
-    /* Warna tulisan di sidebar */
     @media (prefers-color-scheme: dark) {
         [data-testid="stSidebar"], [data-testid="stSidebar"] p, [data-testid="stSidebar"] div, 
         [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] h1,
         [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color: #2e7d32 !important; }
     }
-    
-    /* Styling Tombol (Warna Hijau) */
     div.stButton > button {
         border-radius: 8px; border: 1px solid #4caf50; background-color: transparent;
         color: #2e7d32; font-weight: bold; transition: all 0.3s ease-in-out;
@@ -47,10 +51,7 @@ st.markdown("""
         box-shadow: 0px 0px 15px rgba(76, 175, 80, 0.4); background-color: #4caf50;
         color: white; transform: scale(1.02);
     }
-    
     [data-testid="stSidebar"] { font-size: 1.15rem !important; }
-    
-    /* Styling Radio Button / Menu Pilihan */
     div[role="radiogroup"] > label {
         background-color: #f1f8e9 !important; color: #1b5e20 !important; 
         padding: 10px 5px !important; border-radius: 10px; margin-bottom: 12px;
@@ -64,8 +65,6 @@ st.markdown("""
     div[role="radiogroup"] > label [data-testid="stMarkdownContainer"] p {
         font-size: 14px !important; font-weight: 800 !important; margin: 0 !important; white-space: nowrap !important;
     }
-    
-    /* 🫧 Styling Metrik Tampilan Gelembung (Bubble) - DIBUAT SIMETRIS */
     div[data-testid="metric-container"] {
         background: radial-gradient(circle at top left, #ffffff, #e8f5e9) !important;
         border-radius: 35px !important; 
@@ -73,69 +72,21 @@ st.markdown("""
         border: 2px solid #aed581 !important;
         box-shadow: 5px 5px 15px rgba(0,0,0,0.08), inset -3px -3px 10px rgba(0,0,0,0.04) !important;
         text-align: center !important;
-        
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        
-        min-height: 150px !important; 
-        width: 100% !important;
-        transition: all 0.3s ease-in-out;
+        display: flex !important; flex-direction: column !important;
+        align-items: center !important; justify-content: center !important;
+        min-height: 150px !important; width: 100% !important; transition: all 0.3s ease-in-out;
     }
     div[data-testid="metric-container"]:hover {
-        transform: translateY(-5px) scale(1.02);
-        box-shadow: 0px 8px 20px rgba(76, 175, 80, 0.3) !important;
+        transform: translateY(-5px) scale(1.02); box-shadow: 0px 8px 20px rgba(76, 175, 80, 0.3) !important;
     }
-    
-    /* Menyelaraskan teks judul dan angka di dalam gelembung */
-    div[data-testid="metric-container"] > div {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-    }
-    div[data-testid="metric-container"] label { 
-        color: #2e7d32 !important; 
-        font-weight: 800 !important; 
-        font-size: 15px !important;
-        text-align: center !important;
-        width: 100% !important;
-        margin-bottom: 8px;
-    }
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
-        color: #1b5e20 !important; 
-        font-weight: 900 !important; 
-        font-size: 28px !important;
-        text-align: center !important;
-        width: 100% !important;
-    }
-    
-    /* Header Glowing Hijau */
-    .title-glowing {
-        text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3);
-        font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center;
-        flex-wrap: wrap;
-    }
-    
-    /* 📱 OVERRIDE KHUSUS TAMPILAN HP (RESPONSIVE) */
+    div[data-testid="metric-container"] > div { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    div[data-testid="metric-container"] label { color: #2e7d32 !important; font-weight: 800 !important; font-size: 15px !important; text-align: center !important; width: 100% !important; margin-bottom: 8px; }
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: #1b5e20 !important; font-weight: 900 !important; font-size: 28px !important; text-align: center !important; width: 100% !important; }
+    .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; }
     @media (max-width: 768px) {
-        /* Metrik Horizontal */
-        div[data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important;
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch; 
-            padding-bottom: 15px; 
-        }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            min-width: 160px !important; 
-            flex: 0 0 auto !important; 
-        }
-        
+        div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; padding-bottom: 15px; }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { min-width: 160px !important; flex: 0 0 auto !important; }
         div[data-testid="stForm"] { border-radius: 15px !important; }
-        
-        /* Mengecilkan judul di HP agar proporsional */
         .title-glowing { font-size: 1.5rem !important; }
         .title-glowing img { height: 30px !important; margin-right: 10px !important; }
     }
@@ -159,27 +110,13 @@ if st.session_state['logged_in']:
 def render_login():
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown(f"<h1 class='title-glowing'><img src='{DAIHATSU_LOGO_PNG}' style='height: 40px; margin-right: 15px;'> PKB WIP DSO KARAWACI</h1>", unsafe_allow_html=True)
-    
-    # CSS Eksklusif HANYA untuk Halaman Login agar form proporsional dan tidak menyebabkan scroll horizontal di HP
     st.markdown("""
     <style>
-        div[data-testid="stForm"] {
-            max-width: 450px !important; /* Membatasi lebar form di desktop */
-            margin: 0 auto !important;   /* Menempatkan form persis di tengah */
-            padding: 2rem !important;
-            box-shadow: 0px 8px 20px rgba(0,0,0,0.05) !important;
-        }
-        @media (max-width: 768px) {
-            div[data-testid="stForm"] {
-                max-width: 90% !important; /* Lebih compact dan presisi di layar HP */
-                padding: 1.5rem !important;
-                margin-top: 20px !important;
-            }
-        }
+        div[data-testid="stForm"] { max-width: 450px !important; margin: 0 auto !important; padding: 2rem !important; box-shadow: 0px 8px 20px rgba(0,0,0,0.05) !important; }
+        @media (max-width: 768px) { div[data-testid="stForm"] { max-width: 90% !important; padding: 1.5rem !important; margin-top: 20px !important; } }
     </style>
     """, unsafe_allow_html=True)
 
-    # Dibuat langsung tanpa st.columns() agar terbebas dari bug layout Streamlit di mobile
     with st.form("login_form"):
         st.markdown("<h3 style='text-align: center;'>🔐 Login Dashboard</h3>", unsafe_allow_html=True)
         username = st.text_input("👤 Username")
@@ -214,31 +151,42 @@ with st.sidebar:
         st.session_state['last_menu'] = menu_pilihan
 
 # ==========================================
-# 🌐 INTEGRASI DATABASE CLOUD & LOGIKA MERGE
+# 🌐 INTEGRASI CLOUD & FUNGSI BARU
 # ==========================================
+def hitung_progress(kategori, status):
+    if status == "Selesai": return 100
+    if status == "Menunggu Part": return 50
+    if status == "Quality Control": return 90
+
+    if kategori == "General Repair":
+        if status == "Menunggu Pekerjaan": return 10
+        if status == "Sedang Dikerjakan": return 60
+    elif kategori == "Body Repair":
+        br_steps = ["Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul", "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan"]
+        if status in br_steps:
+            # Kalkulasi proporsional (max 85% sebelum QC/Selesai)
+            return int(((br_steps.index(status) + 1) / len(br_steps)) * 85)
+    return 0
+
 @st.cache_data(ttl=15) 
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
         data = response.json()
-        if not data:
-            return pd.DataFrame()
+        if not data: return pd.DataFrame()
         
         df = pd.DataFrame(data)
-        
         if 'No Polisi' in df.columns:
             df = df.drop_duplicates(subset=['No Polisi'], keep='last').reset_index(drop=True)
 
         kolom_wajib = ['Nama SA', 'Tipe Kendaraan', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB']
         for col in kolom_wajib:
-            if col not in df.columns: 
-                df[col] = "-"
+            if col not in df.columns: df[col] = "-"
         
         if 'No PKB' in df.columns and 'Tipe Kendaraan' in df.columns:
             cols = list(df.columns)
             cols.remove('Tipe Kendaraan') 
-            idx_no_pkb = cols.index('No PKB') 
-            cols.insert(idx_no_pkb + 1, 'Tipe Kendaraan') 
+            cols.insert(cols.index('No PKB') + 1, 'Tipe Kendaraan') 
             df = df[cols] 
             
         if 'Tgl PKB' in df.columns:
@@ -249,6 +197,17 @@ def load_data():
             df['Umur PKB (Hari)'] = df['Umur PKB (Hari)'].fillna(0).astype(int)
             df['Tgl PKB'] = df['Tgl PKB'].dt.strftime('%Y-%m-%d').fillna("-")
             
+            # FITUR BARU: Memindahkan kolom Umur PKB tepat setelah Tgl PKB
+            cols = list(df.columns)
+            if 'Umur PKB (Hari)' in cols and 'Tgl PKB' in cols:
+                cols.remove('Umur PKB (Hari)')
+                cols.insert(cols.index('Tgl PKB') + 1, 'Umur PKB (Hari)')
+                df = df[cols]
+                
+        # FITUR BARU: Kalkulasi Presentase Progress untuk Bar Dashboard
+        if 'Kategori' in df.columns and 'Status Pekerjaan' in df.columns:
+            df['Progress (%)'] = df.apply(lambda row: hitung_progress(row['Kategori'], row['Status Pekerjaan']), axis=1)
+
         return df
     except Exception as e:
         st.error(f"Gagal koneksi ke database Cloud: {e}")
@@ -256,12 +215,10 @@ def load_data():
 
 def get_merged_data():
     new_df = load_data()
-    
     if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
         old_df = st.session_state['df_data']
         if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns and 'Status Pekerjaan' in old_df.columns:
             old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan']))
-            
             if 'Status Pekerjaan' in new_df.columns:
                 new_df['Status Pekerjaan'] = new_df.apply(
                     lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), 
@@ -270,10 +227,9 @@ def get_merged_data():
     return new_df
 
 def save_data(df):
-    # Kolom Aksi WA Part 1 dan 2 dikecualikan agar tidak error masuk ke cloud database
-    df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
-    df_to_save = df_to_save.fillna("-") 
-    df_to_save = df_to_save.astype(str)
+    # Kolom yang tidak perlu masuk ke google sheet
+    df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Progress (%)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
+    df_to_save = df_to_save.fillna("-").astype(str)
     data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
     
     try:
@@ -291,19 +247,50 @@ def save_data(df):
 def upload_foto_cloud(img_file):
     url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
     files = { "image": (img_file.name, img_file.getvalue(), img_file.type) }
-    
     try:
         res = requests.post(url, files=files, timeout=25)
         data = res.json()
         if res.status_code == 200 and 'data' in data:
             return data['data']['url']
         else:
-            pesan_error = data.get('error', {}).get('message', res.text)
-            st.error(f"❌ ImgBB Menolak Upload: {pesan_error}")
+            st.error(f"❌ ImgBB Menolak Upload: {data.get('error', {}).get('message', res.text)}")
             return None
     except Exception as e:
         st.error(f"❌ Gagal upload foto ke Cloud: {e}")
     return None
+
+def send_auto_email_wa(nopol, status, catatan):
+    # --- LOGIKA OTOMATIS EMAIL (Latar Belakang) ---
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = "deny.hermawan@dso.astra.co.id, hendri.yogasaputra@dso.astra.co.id"
+        msg['Subject'] = f"Update Status Pekerjaan Otomatis - No Polisi: {nopol}"
+        
+        body = f"Terdapat update pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}\n\nSalam, Admin Service."
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Uncomment baris di bawah ini setelah memasukkan kredensial SENDER_EMAIL yang valid
+        # server = smtplib.SMTP('smtp.gmail.com', 587)
+        # server.starttls()
+        # server.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
+        # server.send_message(msg)
+        # server.quit()
+    except Exception as e:
+        print(f"Gagal mengirim email background: {e}")
+
+    # --- LOGIKA OTOMATIS WHATSAPP (Latar Belakang) ---
+    # Membutuhkan penyedia layanan API pihak ke-3 (contoh: Fonnte)
+    try:
+        target_numbers = "089630028860,085888874700"
+        pesan_wa = f"Terdapat update pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
+        
+        # Uncomment baris di bawah ini setelah mendapatkan Token Fonnte/WA API lainnya
+        # headers = {'Authorization': WA_API_TOKEN}
+        # data = {'target': target_numbers, 'message': pesan_wa}
+        # requests.post(WA_API_URL, headers=headers, data=data)
+    except Exception as e:
+        print(f"Gagal mengirim WA background: {e}")
 
 # ==========================================
 # 📊 DASHBOARD & APP LOGIC
@@ -331,7 +318,6 @@ if 'notif_sukses' in st.session_state:
     st.success(st.session_state['notif_sukses'])
     del st.session_state['notif_sukses']
 
-# 🫧 METRIK GELEMBUNG AKAN TAMPIL DI SEMUA TAB/MENU 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
@@ -347,7 +333,6 @@ else:
     m3.metric(label="Antrean BR", value="0 Unit")
 m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
 
-# Pembatas visual antara gelembung dan isi tabel/form
 st.markdown("<hr style='border: 1px solid #dcedc8; margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
 def render_update_form(kategori_filter):
@@ -372,10 +357,8 @@ def render_mobile_form():
     list_nopol = df['No Polisi'].dropna().unique().tolist()
     
     tab1, tab2 = st.tabs(["📝 Pilih dari List", "⌨️ Cari Manual"])
-    with tab1:
-        nopol_list = st.selectbox("Cari No Polisi Kendaraan", [""] + list_nopol, key="mob_list")
-    with tab2:
-        nopol_man = st.text_input("Ketik No Polisi", key="mob_man").strip().upper()
+    with tab1: nopol_list = st.selectbox("Cari No Polisi Kendaraan", [""] + list_nopol, key="mob_list")
+    with tab2: nopol_man = st.text_input("Ketik No Polisi", key="mob_man").strip().upper()
         
     selected_nopol = nopol_list if nopol_list else nopol_man
     execute_form_logic(selected_nopol, list_nopol, None)
@@ -408,56 +391,60 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'])
 
             if st.form_submit_button("💾 UPDATE DATA", use_container_width=True):
-                upload_sukses = True
-                link_foto = None
-                
-                if uploaded_foto is not None:
-                    with st.spinner("Mengupload foto..."):
-                        link_foto = upload_foto_cloud(uploaded_foto)
-                        if link_foto: df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
-                        else: upload_sukses = False 
-                
-                if upload_sukses:
-                    df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
-                    df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
-                    df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    st.session_state['df_data'] = df
-                    with st.spinner("Menyinkronkan ke Cloud..."):
-                        sukses = save_data(df)
-                    if sukses:
-                        st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui!"
-                        st.rerun()
+                # FITUR BARU: Wajib foto jika kategori Body Repair
+                if kategori_asli == "Body Repair" and uploaded_foto is None:
+                    st.error("🛑 GAGAL UPDATE: Kategori Body Repair DIWAJIBKAN mengunggah foto kondisi kendaraan saat update status!")
                 else:
-                    st.error("🛑 Gagal menyimpan karena error unggah foto.")
+                    upload_sukses = True
+                    link_foto = None
+                    
+                    if uploaded_foto is not None:
+                        with st.spinner("Mengupload foto..."):
+                            link_foto = upload_foto_cloud(uploaded_foto)
+                            if link_foto: df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
+                            else: upload_sukses = False 
+                    
+                    if upload_sukses:
+                        df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
+                        df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
+                        df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        st.session_state['df_data'] = df
+                        with st.spinner("Menyinkronkan ke Cloud..."):
+                            sukses = save_data(df)
+                        if sukses:
+                            # FITUR BARU: Trigger otomatis notifikasi background tanpa klik
+                            send_auto_email_wa(selected_nopol, new_status, new_ket)
+                            st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis."
+                            st.rerun()
+                    else:
+                        st.error("🛑 Gagal menyimpan karena error unggah foto.")
 
 if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
         df_display = df_wip.copy()
-        if 'Status Pekerjaan' in df_display.columns:
-            # Variabel nomor WA diperbarui menjadi 2 admin part
-            nomor_wa_part_1 = "+6289630028860" # Karakter '&' di akhir sudah dihapus agar link bersih
-            nomor_wa_part_2 = "+6285888874700" # Nomor kedua Admin Part ditambahkan
-            email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id"
-            
-            df_display['Aksi WA Part 1'] = df_display.apply(
-                lambda row: f"https://wa.me/{nomor_wa_part_1}?text=Halo%20Admin%20Part%201,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
+        
+        # Pengaturan untuk merender Dashboard dengan Progress Bar Visual
+        column_configs = {
+            "Aksi WA Part 1": st.column_config.LinkColumn("Hubungi WA 1", display_text="💬 Chat Part 1"),
+            "Aksi WA Part 2": st.column_config.LinkColumn("Hubungi WA 2", display_text="💬 Chat Part 2"),
+            "Aksi Email Part": st.column_config.LinkColumn("Hubungi via Email", display_text="📧 Email Admin Part")
+        }
+        
+        # Tambahkan konfigurasi bar hanya jika kolom ada
+        if 'Progress (%)' in df_display.columns:
+            column_configs["Progress (%)"] = st.column_config.ProgressColumn(
+                "Persentase Selesai",
+                help="Bar Progress Status Pekerjaan",
+                format="%d%%",
+                min_value=0,
+                max_value=100
             )
-            df_display['Aksi WA Part 2'] = df_display.apply(
-                lambda row: f"https://wa.me/{nomor_wa_part_2}?text=Halo%20Admin%20Part%202,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
-            )
-            df_display['Aksi Email Part'] = df_display.apply(
-                lambda row: f"mailto:{email_part}?subject=Follow%20Up%20Part%20WIP%20-%20{row['No Polisi']}&body=Halo%20Tim%20Part,%0A%0AMohon%20bantuannya%20untuk%20update%20status%20part%20kendaraan%20dengan%20No%20Polisi:%20{row['No Polisi']}.%0A%0ATerima%20kasih." if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
-            )
-            
+
         st.dataframe(
             df_display.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_display.columns else []), 
             use_container_width=True, hide_index=True,
-            column_config={
-                "Aksi WA Part 1": st.column_config.LinkColumn("Hubungi WA 1", display_text="💬 Chat Part 1"),
-                "Aksi WA Part 2": st.column_config.LinkColumn("Hubungi WA 2", display_text="💬 Chat Part 2"),
-                "Aksi Email Part": st.column_config.LinkColumn("Hubungi via Email", display_text="📧 Email Admin Part")
-            }
+            column_config=column_configs
         )
     elif menu_pilihan == "📱 TAMPILAN MOBILE":
         render_mobile_form()
@@ -472,9 +459,6 @@ if not df.empty:
     elif menu_pilihan == "✅ RIWAYAT SELESAI": 
         st.dataframe(df_selesai.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_selesai.columns else []), use_container_width=True, hide_index=True)
         
-    # ==========================================
-    # ➕ MENU TAMBAH KENDARAAN TAMU / MANUAL
-    # ==========================================
     elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
         st.markdown("#### 🚗 Input Kendaraan Tamu / Manual")
         st.info("Fitur ini digunakan untuk memasukkan kendaraan yang belum terdaftar PKB (Non-PKB).")
@@ -505,13 +489,9 @@ if not df.empty:
                             else: upload_sukses = False
                     
                     if upload_sukses:
-                        # Membuat dictionary kosong sesuai struktur kolom database
                         new_data = {col: "-" for col in df.columns}
-                        
-                        # Menggabungkan tipe dan warna untuk disimpan di kolom Tipe Kendaraan
                         gabungan_tipe = f"{tipe_baru} ({warna_baru})" if warna_baru else tipe_baru
                         
-                        # Mengisi data
                         new_data['No Polisi'] = nopol_baru
                         new_data['Tipe Kendaraan'] = gabungan_tipe
                         new_data['Kategori'] = kategori_baru
@@ -522,7 +502,6 @@ if not df.empty:
                         new_data['No PKB'] = "BELUM ADA"
                         new_data['Foto PKB'] = link_foto
                         
-                        # Menambahkan baris baru ke Dataframe
                         df_new_row = pd.DataFrame([new_data])
                         df_updated = pd.concat([df, df_new_row], ignore_index=True)
                         
