@@ -270,7 +270,8 @@ def get_merged_data():
     return new_df
 
 def save_data(df):
-    df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Aksi WA Part', 'Aksi Email Part'], errors='ignore')
+    # Kolom Aksi WA Part 1 dan 2 dikecualikan agar tidak error masuk ke cloud database
+    df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
     df_to_save = df_to_save.fillna("-") 
     df_to_save = df_to_save.astype(str)
     data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
@@ -434,11 +435,16 @@ if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
-            nomor_wa_part = "+6289630028860&"
+            # Variabel nomor WA diperbarui menjadi 2 admin part
+            nomor_wa_part_1 = "+6289630028860" # Karakter '&' di akhir sudah dihapus agar link bersih
+            nomor_wa_part_2 = "+8285888874700" # Nomor kedua Admin Part ditambahkan
             email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id"
             
-            df_display['Aksi WA Part'] = df_display.apply(
-                lambda row: f"https://wa.me/{nomor_wa_part}?text=Halo%20Admin%20Part,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
+            df_display['Aksi WA Part 1'] = df_display.apply(
+                lambda row: f"https://wa.me/{nomor_wa_part_1}?text=Halo%20Admin%20Part%201,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
+            )
+            df_display['Aksi WA Part 2'] = df_display.apply(
+                lambda row: f"https://wa.me/{nomor_wa_part_2}?text=Halo%20Admin%20Part%202,%20saya%20Admin%20Service.%20Mohon%20info%20ketersediaan/estimasi%20part%20untuk%20kendaraan%20WIP%20No%20Polisi:%20{row['No Polisi']}" if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
             )
             df_display['Aksi Email Part'] = df_display.apply(
                 lambda row: f"mailto:{email_part}?subject=Follow%20Up%20Part%20WIP%20-%20{row['No Polisi']}&body=Halo%20Tim%20Part,%0A%0AMohon%20bantuannya%20untuk%20update%20status%20part%20kendaraan%20dengan%20No%20Polisi:%20{row['No Polisi']}.%0A%0ATerima%20kasih." if row['Status Pekerjaan'] == 'Menunggu Part' else None, axis=1
@@ -448,7 +454,8 @@ if not df.empty:
             df_display.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_display.columns else []), 
             use_container_width=True, hide_index=True,
             column_config={
-                "Aksi WA Part": st.column_config.LinkColumn("Hubungi via WA", display_text="💬 Chat Admin Part"),
+                "Aksi WA Part 1": st.column_config.LinkColumn("Hubungi WA 1", display_text="💬 Chat Part 1"),
+                "Aksi WA Part 2": st.column_config.LinkColumn("Hubungi WA 2", display_text="💬 Chat Part 2"),
                 "Aksi Email Part": st.column_config.LinkColumn("Hubungi via Email", display_text="📧 Email Admin Part")
             }
         )
