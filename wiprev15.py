@@ -437,7 +437,7 @@ if not df.empty:
         if 'Status Pekerjaan' in df_display.columns:
             # Variabel nomor WA diperbarui menjadi 2 admin part
             nomor_wa_part_1 = "+6289630028860" # Karakter '&' di akhir sudah dihapus agar link bersih
-            nomor_wa_part_2 = "+8285888874700" # Nomor kedua Admin Part ditambahkan
+            nomor_wa_part_2 = "+6285888874700" # Nomor kedua Admin Part ditambahkan
             email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id"
             
             df_display['Aksi WA Part 1'] = df_display.apply(
