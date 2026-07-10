@@ -20,6 +20,13 @@ SENDER_APP_PASSWORD = "Bulan@07" # App Password / Password Email
 WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
+# --- TAMBAHAN: KONFIGURASI NOMOR WA TARGET ---
+# Ganti nomor-nomor di bawah ini dengan nomor yang sebenarnya (Wajib gunakan format 628...)
+WA_SA_BR = ["628111111111"] # 1 Nomor WA SA Body Repair
+WA_SA_GR = ["628222222221", "628222222222", "628222222223"] # 3 Nomor WA SA General Repair
+WA_ADMIN_PART = ["628333333331", "628333333332"] # 2 Nomor WA Admin Part
+# ---------------------------------------------
+
 # ==========================================
 # 🌟 LINK LOGO SUPER JERNIH (VECTOR/PNG)
 # ==========================================
@@ -255,7 +262,7 @@ def upload_foto_cloud(img_file):
         st.error(f"❌ Gagal upload foto ke Cloud: {e}")
     return None
 
-def send_auto_email_wa(nopol, status, catatan):
+def send_auto_email_wa(nopol, status, catatan, kategori):
     # ==========================================
     # 📧 LOGIKA OTOMATIS EMAIL
     # ==========================================
@@ -283,8 +290,21 @@ def send_auto_email_wa(nopol, status, catatan):
     # 🟢 LOGIKA OTOMATIS WHATSAPP (Whapi Cloud API)
     # ==========================================
     try:
-        target_number = "6287774134574" # Pastikan tanpa tanda '+' di depannya untuk Whapi
         pesan_wa = f"Selamat Siang Sahabat,Berikut kami kirimkan update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
+        
+        # Kumpulkan nomor penerima berdasarkan Kategori & Status
+        target_numbers = []
+        
+        if kategori == "Body Repair":
+            target_numbers.extend(WA_SA_BR)
+        elif kategori == "General Repair":
+            target_numbers.extend(WA_SA_GR)
+            
+        if status == "Menunggu Part":
+            target_numbers.extend(WA_ADMIN_PART)
+            
+        # Hapus duplikasi nomor (jika ada irisan antar list)
+        target_numbers = list(set(target_numbers))
         
         # Endpoint Whapi untuk mengirim pesan teks
         endpoint = f"{WA_API_URL.rstrip('/')}/messages/text"
@@ -295,21 +315,23 @@ def send_auto_email_wa(nopol, status, catatan):
             'Content-Type': 'application/json'
         }
         
-        payload = {
-            "to": target_number,
-            "body": pesan_wa
-        }
-        
-        # Request menggunakan format JSON sesuai API Whapi
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=10)
-        
-        if response.status_code == 200:
-            print("✅ WhatsApp background berhasil dikirim!")
-        else:
-            print(f"❌ Gagal mengirim WA. Code: {response.status_code}, Res: {response.text}")
+        # Eksekusi pengiriman WA untuk setiap nomor di list target_numbers
+        for number in target_numbers:
+            if number.strip():  # Memastikan string nomor tidak kosong
+                payload = {
+                    "to": number.strip(),
+                    "body": pesan_wa
+                }
+                
+                response = requests.post(endpoint, headers=headers, json=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    print(f"✅ WhatsApp background berhasil dikirim ke {number}!")
+                else:
+                    print(f"❌ Gagal mengirim WA ke {number}. Code: {response.status_code}, Res: {response.text}")
             
     except Exception as e:
-        print(f"❌ Gagal mengirim WA background: {e}")
+        print(f"❌ Gagal memproses WA background: {e}")
 
 # ==========================================
 # 📊 DASHBOARD & APP LOGIC
@@ -432,7 +454,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                             sukses = save_data(df)
                         if sukses:
                             # TRIGGER EMAIL & WA OTOMATIS DISINI
-                            send_auto_email_wa(selected_nopol, new_status, new_ket)
+                            send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli) # Melempar kategori_asli sebagai argumen baru
                             st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis."
                             st.rerun()
                     else:
