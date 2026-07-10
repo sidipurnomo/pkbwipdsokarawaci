@@ -283,8 +283,8 @@ def send_auto_email_wa(nopol, status, catatan):
     # 🟢 LOGIKA OTOMATIS WHATSAPP (Whapi Cloud API)
     # ==========================================
     try:
-        target_number = "6281399211266,6287774134574" # Pastikan tanpa tanda '+' di depannya untuk Whapi
-        pesan_wa = f"Terdapat update pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
+        target_number = "6287774134574" # Pastikan tanpa tanda '+' di depannya untuk Whapi
+        pesan_wa = f"Selamat Siang Sahabat,Berikut kami kirimkan update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
         
         # Endpoint Whapi untuk mengirim pesan teks
         endpoint = f"{WA_API_URL.rstrip('/')}/messages/text"
