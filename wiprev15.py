@@ -104,8 +104,32 @@ st.markdown("""
     .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; }
     
     @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; padding-bottom: 15px; }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { min-width: 160px !important; flex: 0 0 auto !important; }
+        /* PERUBAHAN: Membuat susunan metrik menjadi grid 2x2 yang kompak */
+        div[data-testid="stHorizontalBlock"] { 
+            flex-wrap: wrap !important; 
+            overflow-x: hidden !important; 
+            padding-bottom: 10px; 
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { 
+            min-width: 45% !important; 
+            flex: 1 1 45% !important; 
+            margin-bottom: 10px !important; 
+        }
+        
+        /* PERUBAHAN: Mengecilkan font dan container untuk mobile */
+        div[data-testid="metric-container"] {
+            min-height: 90px !important; 
+            padding: 12px 5px !important;
+            border-radius: 20px !important;
+        }
+        div[data-testid="metric-container"] label { 
+            font-size: 13px !important; 
+            margin-bottom: 2px !important;
+        }
+        div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
+            font-size: 22px !important; 
+        }
+
         div[data-testid="stForm"] { border-radius: 15px !important; }
         .title-glowing { font-size: 1.5rem !important; }
         .title-glowing img { height: 30px !important; margin-right: 10px !important; }
