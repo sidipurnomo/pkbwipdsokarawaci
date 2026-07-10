@@ -104,30 +104,35 @@ st.markdown("""
     .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; }
     
     @media (max-width: 768px) {
-        /* PERUBAHAN: Membuat susunan metrik menjadi grid 2x2 yang kompak */
+        /* PERUBAHAN: Memaksa susunan metrik menjadi 1 baris horizontal di mobile */
         div[data-testid="stHorizontalBlock"] { 
-            flex-wrap: wrap !important; 
+            flex-wrap: nowrap !important; 
             overflow-x: hidden !important; 
-            padding-bottom: 10px; 
+            padding-bottom: 5px; 
+            gap: 2px !important;
         }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { 
-            min-width: 45% !important; 
-            flex: 1 1 45% !important; 
-            margin-bottom: 10px !important; 
+            min-width: 0 !important; 
+            flex: 1 1 24% !important; 
+            margin-bottom: 5px !important;
+            padding: 0px 2px !important;
         }
         
-        /* PERUBAHAN: Mengecilkan font dan container untuk mobile */
+        /* PERUBAHAN: Mengecilkan font dan container secara signifikan agar muat 1 baris */
         div[data-testid="metric-container"] {
-            min-height: 90px !important; 
-            padding: 12px 5px !important;
-            border-radius: 20px !important;
+            min-height: 60px !important; 
+            padding: 6px 2px !important;
+            border-radius: 12px !important;
         }
         div[data-testid="metric-container"] label { 
-            font-size: 13px !important; 
-            margin-bottom: 2px !important;
+            font-size: 9px !important; 
+            margin-bottom: 0px !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
         }
         div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
-            font-size: 22px !important; 
+            font-size: 13px !important; 
+            line-height: 1.2 !important;
         }
 
         div[data-testid="stForm"] { border-radius: 15px !important; }
