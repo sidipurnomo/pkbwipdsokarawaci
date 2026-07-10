@@ -434,7 +434,7 @@ if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
         df_display = df_wip.copy()
         if 'Status Pekerjaan' in df_display.columns:
-            nomor_wa_part = "+6289630028860","+6285888874700"
+            nomor_wa_part = "+6289630028860;+6285888874700"
             email_part = "deny.hermawan@dso.astra.co.id;hendri.yogasaputra@dso.astra.co.id"
             
             df_display['Aksi WA Part'] = df_display.apply(
