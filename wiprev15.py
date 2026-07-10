@@ -15,8 +15,8 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis (Ganti dengan data milikmu)
-SENDER_EMAIL = "sidi.purnomo87@gmail.com"
-SENDER_APP_PASSWORD = "Irma@8587" # Gunakan App Password, bukan password biasa
+SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
+SENDER_APP_PASSWORD = "Bulan@07" # Gunakan App Password, bukan password biasa
 WA_API_URL = " https://graph.facebook.com/v25.0/1295490290304734/messages" # Contoh menggunakan Fonnte
 WA_API_TOKEN = "EAAOrTb3X3qoBR7a3I4BhKFvC23ilTZCEnZC9JuXbznMKK4nqgVSMdD4h6ft76ZBUjIAsj8oXCJf9kSqT9R2yz4ht8eSDC7gFw9dlxoVKSZCcukI3qusqJQbICJ8KCpuJmxOcwXEGF3eX6ZBnqpUZBcWdVai2Xp12aIkDbZAwv2GXUZAdCNpJ1Ny1WkIkmzsB6CZC7M1vMgZBKZAMOLOr8yRHgXXOqeFNPJ8xydrm6xNn9ZBuj73wZClcgXZBYWouHQr3beLsIoiJc062UscuLW9JhuF5LONEDYzZAk4HX9Q"
 
