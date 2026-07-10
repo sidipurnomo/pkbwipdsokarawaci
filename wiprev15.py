@@ -59,19 +59,30 @@ st.markdown("""
         color: white; transform: scale(1.02);
     }
     [data-testid="stSidebar"] { font-size: 1.15rem !important; }
+    
+    /* MODIFIKASI: BUBBLE MENU SEJAJAR DAN SAMA UKURAN */
+    div[role="radiogroup"] { 
+        width: 100% !important; 
+    }
     div[role="radiogroup"] > label {
         background-color: #f1f8e9 !important; color: #1b5e20 !important; 
-        padding: 10px 5px !important; border-radius: 10px; margin-bottom: 12px;
+        padding: 12px 15px !important; border-radius: 10px; margin-bottom: 12px;
         border: 1px solid #dcedc8; border-bottom: 5px solid #aed581; 
-        box-shadow: 0px 4px 6px rgba(0,0,0,0.05); cursor: pointer; white-space: nowrap !important;
+        box-shadow: 0px 4px 6px rgba(0,0,0,0.05); cursor: pointer; 
+        width: 100% !important; display: block !important; box-sizing: border-box !important;
     }
     div[role="radiogroup"] > label:hover {
         transform: translateY(-3px); border-bottom: 7px solid #7cb342; 
     }
     div[role="radiogroup"] > label span[data-baseweb="radio"] { display: none; }
-    div[role="radiogroup"] > label [data-testid="stMarkdownContainer"] p {
-        font-size: 14px !important; font-weight: 800 !important; margin: 0 !important; white-space: nowrap !important;
+    div[role="radiogroup"] > label [data-testid="stMarkdownContainer"] {
+        width: 100% !important; display: block !important;
     }
+    div[role="radiogroup"] > label [data-testid="stMarkdownContainer"] p {
+        font-size: 14px !important; font-weight: 800 !important; margin: 0 !important; 
+        text-align: left !important; white-space: nowrap !important;
+    }
+
     div[data-testid="metric-container"] {
         background: radial-gradient(circle at top left, #ffffff, #e8f5e9) !important;
         border-radius: 35px !important; 
@@ -89,13 +100,19 @@ st.markdown("""
     div[data-testid="metric-container"] > div { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     div[data-testid="metric-container"] label { color: #2e7d32 !important; font-weight: 800 !important; font-size: 15px !important; text-align: center !important; width: 100% !important; margin-bottom: 8px; }
     div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: #1b5e20 !important; font-weight: 900 !important; font-size: 28px !important; text-align: center !important; width: 100% !important; }
+    
     .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; }
+    
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; padding-bottom: 15px; }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { min-width: 160px !important; flex: 0 0 auto !important; }
         div[data-testid="stForm"] { border-radius: 15px !important; }
         .title-glowing { font-size: 1.5rem !important; }
         .title-glowing img { height: 30px !important; margin-right: 10px !important; }
+        
+        /* MODIFIKASI: HEADER COMPACT UNTUK MOBILE */
+        .main-header { font-size: 1.2rem !important; justify-content: center !important; }
+        .main-header img { height: 24px !important; margin-right: 8px !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -359,7 +376,8 @@ if 'notif_sukses' in st.session_state:
     st.success(st.session_state['notif_sukses'])
     del st.session_state['notif_sukses']
 
-st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
+# MODIFIKASI: Menambahkan class 'main-header' agar bisa dikendalikan oleh CSS mobile responsive
+st.markdown(f"<h3 class='main-header' style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
 df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
