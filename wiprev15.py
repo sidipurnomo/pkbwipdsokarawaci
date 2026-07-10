@@ -17,8 +17,8 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 # Konfigurasi Notifikasi Otomatis (Ganti dengan data milikmu)
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
 SENDER_APP_PASSWORD = "Bulan@07" # Gunakan App Password, bukan password biasa
-WA_API_URL = " https://graph.facebook.com/v25.0/1295490290304734/messages" # Contoh menggunakan Fonnte
-WA_API_TOKEN = "EAAOrTb3X3qoBR3gdcaClRZCBZCMnI38hl4N5h5Y6z10DIVONX6nUozEVayXtjmI2oEZCBUvNOZBiEYFPy5LDLf4B0iNJ2GfsBjXgEZBPowob0PBYoVbPfrGYZCXEc5HkGodffwmXDRXZCDPJrZAebu82iDjFQUbYrv3vPUWS1IDGubZASXAK2HxbZBbcoWFb8QNs0taGj3LdTZCFvBOXHdDZCQa90vaZB2aZAqjQLw4R3rA0ZCj6S859pXQ3dAoFMebnScxngMjjU2OGAMioH1rieZBfERoi1SOkCIB8JZBwZD"
+WA_API_URL = "https://gate.whapi.cloud/" # Contoh menggunakan Fonnte
+WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # ==========================================
 # 🌟 LINK LOGO SUPER JERNIH (VECTOR/PNG)
