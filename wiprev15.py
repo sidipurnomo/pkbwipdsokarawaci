@@ -133,8 +133,6 @@ st.markdown("""
             flex: 0 0 auto !important; 
         }
         
-        /* Memaksa Tampilan Form Login & Input agar full-width dan nyaman di HP */
-        .st-emotion-cache-1jicfl2 { width: 100% !important; padding: 1rem !important; }
         div[data-testid="stForm"] { border-radius: 15px !important; }
         
         /* Mengecilkan judul di HP agar proporsional */
@@ -162,21 +160,38 @@ def render_login():
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown(f"<h1 class='title-glowing'><img src='{DAIHATSU_LOGO_PNG}' style='height: 40px; margin-right: 15px;'> PKB WIP DSO KARAWACI</h1>", unsafe_allow_html=True)
     
-    # Grid responsif: desktop 1-2-1 (di tengah), mobile otomatis 1 kolom 100%
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        with st.form("login_form"):
-            st.markdown("<h3 style='text-align: center;'>🔐 Login Dashboard</h3>", unsafe_allow_html=True)
-            username = st.text_input("👤 Username")
-            password = st.text_input("🔑 Password", type="password")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.form_submit_button("LOGIN KE SISTEM", use_container_width=True):
-                if username == "dsokarawaci" and password == "adminkarawaci":
-                    st.session_state['logged_in'] = True
-                    st.session_state['last_activity'] = time.time() 
-                    st.rerun()
-                else:
-                    st.error("⚠️ Username atau Password Salah!")
+    # CSS Eksklusif HANYA untuk Halaman Login agar form proporsional dan tidak menyebabkan scroll horizontal di HP
+    st.markdown("""
+    <style>
+        div[data-testid="stForm"] {
+            max-width: 450px !important; /* Membatasi lebar form di desktop */
+            margin: 0 auto !important;   /* Menempatkan form persis di tengah */
+            padding: 2rem !important;
+            box-shadow: 0px 8px 20px rgba(0,0,0,0.05) !important;
+        }
+        @media (max-width: 768px) {
+            div[data-testid="stForm"] {
+                max-width: 90% !important; /* Lebih compact dan presisi di layar HP */
+                padding: 1.5rem !important;
+                margin-top: 20px !important;
+            }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Dibuat langsung tanpa st.columns() agar terbebas dari bug layout Streamlit di mobile
+    with st.form("login_form"):
+        st.markdown("<h3 style='text-align: center;'>🔐 Login Dashboard</h3>", unsafe_allow_html=True)
+        username = st.text_input("👤 Username")
+        password = st.text_input("🔑 Password", type="password")
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.form_submit_button("LOGIN KE SISTEM", use_container_width=True):
+            if username == "dsokarawaci" and password == "adminkarawaci":
+                st.session_state['logged_in'] = True
+                st.session_state['last_activity'] = time.time() 
+                st.rerun()
+            else:
+                st.error("⚠️ Username atau Password Salah!")
 
 if not st.session_state['logged_in']:
     render_login()
