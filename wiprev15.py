@@ -282,7 +282,7 @@ def send_auto_email_wa(nopol, status, catatan):
     # --- LOGIKA OTOMATIS WHATSAPP (Latar Belakang) ---
     # Membutuhkan penyedia layanan API pihak ke-3 (contoh: Fonnte)
     try:
-        target_numbers = "089630028860,085888874700"
+        target_numbers = "+6287774134574"
         pesan_wa = f"Terdapat update pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
         
         # Uncomment baris di bawah ini setelah mendapatkan Token Fonnte/WA API lainnya
