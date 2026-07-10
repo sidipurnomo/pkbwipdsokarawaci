@@ -262,10 +262,10 @@ def send_auto_email_wa(nopol, status, catatan):
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
-        msg['To'] = "deny.hermawan@dso.astra.co.id, hendri.yogasaputra@dso.astra.co.id"
+        msg['To'] = "sidi.purnomo@dso.astra.co.id"
         msg['Subject'] = f"Update Status Pekerjaan Otomatis - No Polisi: {nopol}"
         
-        body = f"Terdapat update pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}\n\nSalam, Admin Service."
+        body = f"Berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}\n\nSalam, Admin Service."
         msg.attach(MIMEText(body, 'plain'))
         
         # JIKA ASTRA MENGGUNAKAN GMAIL (Google Workspace) -> biarkan smtp.gmail.com
