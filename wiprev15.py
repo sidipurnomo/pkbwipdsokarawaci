@@ -21,8 +21,8 @@ WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # --- TAMBAHAN: KONFIGURASI NOMOR WA TARGET ---
-WA_SA_BR = ["6281399211266"] # 1 Nomor WA SA Body Repair
-WA_SA_GR = ["6281366664391", "6283893470438", "628558825962"] # 3 Nomor WA SA General Repair
+WA_SA_BR = ["6281399211266", "6285600199590", ] # 1 Nomor WA SA Body Repair
+WA_SA_GR = ["6281366664391", "6283893470438", "628558825962", "6287774134574"] # 3 Nomor WA SA General Repair
 WA_ADMIN_PART = ["6289630028860", "6285888874700"] # 2 Nomor WA Admin Part
 # ---------------------------------------------
 
@@ -313,7 +313,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
         msg['To'] = "sidi.purnomo@dso.astra.co.id"
         msg['Subject'] = f"Update Status Pekerjaan Otomatis - No Polisi: {nopol}"
         
-        body = f"Berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
+        body = f"selamat siang sahabat,berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
         
         # JIKA ADA FOTO, TAMBAHKAN LINK FOTO KE DALAM BODY EMAIL
         if foto_url and foto_url != "-":
@@ -336,7 +336,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
     # 🟢 LOGIKA OTOMATIS WHATSAPP (Whapi Cloud API)
     # ==========================================
     try:
-        pesan_wa = f"Selamat Siang Sahabat,Berikut kami kirimkan update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
+        pesan_wa = f"Testing Selamat Siang Sahabat,Berikut kami kirimkan update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
         
         target_numbers = []
         if kategori == "Body Repair":
