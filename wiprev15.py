@@ -21,7 +21,6 @@ WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # --- TAMBAHAN: KONFIGURASI NOMOR WA TARGET ---
-# Ganti nomor-nomor di bawah ini dengan nomor yang sebenarnya (Wajib gunakan format 628...)
 WA_SA_BR = ["628111111111"] # 1 Nomor WA SA Body Repair
 WA_SA_GR = ["628222222221", "628222222222", "628222222223"] # 3 Nomor WA SA General Repair
 WA_ADMIN_PART = ["628333333331", "628333333332"] # 2 Nomor WA Admin Part
@@ -60,10 +59,7 @@ st.markdown("""
     }
     [data-testid="stSidebar"] { font-size: 1.15rem !important; }
     
-    /* MODIFIKASI: BUBBLE MENU SEJAJAR DAN SAMA UKURAN */
-    div[role="radiogroup"] { 
-        width: 100% !important; 
-    }
+    div[role="radiogroup"] { width: 100% !important; }
     div[role="radiogroup"] > label {
         background-color: #f1f8e9 !important; color: #1b5e20 !important; 
         padding: 12px 15px !important; border-radius: 10px; margin-bottom: 12px;
@@ -104,34 +100,33 @@ st.markdown("""
     .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; }
     
     @media (max-width: 768px) {
-        /* PERUBAHAN: Memaksa susunan metrik menjadi 1 baris horizontal di mobile */
-        div[data-testid="stHorizontalBlock"] { 
-            flex-wrap: nowrap !important; 
-            overflow-x: hidden !important; 
-            padding-bottom: 5px; 
-            gap: 2px !important;
+        /* PERUBAHAN: Memaksa susunan metrik menjadi Grid 2x2 di mobile secara rapi */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="metric-container"]) { 
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 12px !important;
+            padding-bottom: 10px;
         }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { 
-            min-width: 0 !important; 
-            flex: 1 1 24% !important; 
-            margin-bottom: 5px !important;
-            padding: 0px 2px !important;
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="metric-container"]) > div[data-testid="column"] { 
+            width: 100% !important;
+            min-width: 100% !important; 
+            margin-bottom: 0px !important;
+            padding: 0px !important;
         }
         
-        /* PERUBAHAN: Mengecilkan font dan container secara signifikan agar muat 1 baris */
         div[data-testid="metric-container"] {
-            min-height: 60px !important; 
-            padding: 6px 2px !important;
-            border-radius: 12px !important;
+            min-height: 85px !important; 
+            padding: 12px 8px !important;
+            border-radius: 18px !important;
         }
         div[data-testid="metric-container"] label { 
-            font-size: 9px !important; 
-            margin-bottom: 0px !important;
+            font-size: 11px !important; 
+            margin-bottom: 2px !important;
             line-height: 1.1 !important;
             white-space: normal !important;
         }
         div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
-            font-size: 13px !important; 
+            font-size: 20px !important; 
             line-height: 1.2 !important;
         }
 
@@ -139,7 +134,6 @@ st.markdown("""
         .title-glowing { font-size: 1.5rem !important; }
         .title-glowing img { height: 30px !important; margin-right: 10px !important; }
         
-        /* MODIFIKASI: HEADER COMPACT UNTUK MOBILE */
         .main-header { font-size: 1.2rem !important; justify-content: center !important; }
         .main-header img { height: 24px !important; margin-right: 8px !important; }
     }
@@ -308,7 +302,8 @@ def upload_foto_cloud(img_file):
         st.error(f"❌ Gagal upload foto ke Cloud: {e}")
     return None
 
-def send_auto_email_wa(nopol, status, catatan, kategori):
+# MODIFIKASI: Menambahkan Parameter 'foto_url' di Fungsi Notifikasi
+def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
     # ==========================================
     # 📧 LOGIKA OTOMATIS EMAIL
     # ==========================================
@@ -318,11 +313,16 @@ def send_auto_email_wa(nopol, status, catatan, kategori):
         msg['To'] = "sidi.purnomo@dso.astra.co.id"
         msg['Subject'] = f"Update Status Pekerjaan Otomatis - No Polisi: {nopol}"
         
-        body = f"Berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}\n\nSalam, Admin Service."
+        body = f"Berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
+        
+        # JIKA ADA FOTO, TAMBAHKAN LINK FOTO KE DALAM BODY EMAIL
+        if foto_url and foto_url != "-":
+            body += f"\n\nLampiran Foto Kondisi Terkini: {foto_url}"
+            
+        body += "\n\nSalam, Admin Service."
+        
         msg.attach(MIMEText(body, 'plain'))
         
-        # JIKA ASTRA MENGGUNAKAN GMAIL (Google Workspace) -> biarkan smtp.gmail.com
-        # JIKA ASTRA MENGGUNAKAN OUTLOOK/OFFICE365 -> ubah menjadi smtp.office365.com
         server = smtplib.SMTP('smtp.office365.com', 587)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
@@ -338,9 +338,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori):
     try:
         pesan_wa = f"Selamat Siang Sahabat,Berikut kami kirimkan update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
         
-        # Kumpulkan nomor penerima berdasarkan Kategori & Status
         target_numbers = []
-        
         if kategori == "Body Repair":
             target_numbers.extend(WA_SA_BR)
         elif kategori == "General Repair":
@@ -349,11 +347,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori):
         if status == "Menunggu Part":
             target_numbers.extend(WA_ADMIN_PART)
             
-        # Hapus duplikasi nomor (jika ada irisan antar list)
         target_numbers = list(set(target_numbers))
-        
-        # Endpoint Whapi untuk mengirim pesan teks
-        endpoint = f"{WA_API_URL.rstrip('/')}/messages/text"
         
         headers = {
             'Authorization': f"Bearer {WA_API_TOKEN}",
@@ -361,13 +355,23 @@ def send_auto_email_wa(nopol, status, catatan, kategori):
             'Content-Type': 'application/json'
         }
         
-        # Eksekusi pengiriman WA untuk setiap nomor di list target_numbers
         for number in target_numbers:
-            if number.strip():  # Memastikan string nomor tidak kosong
-                payload = {
-                    "to": number.strip(),
-                    "body": pesan_wa
-                }
+            if number.strip():  
+                # JIKA ADA FOTO, GUNAKAN ENDPOINT IMAGE
+                if foto_url and foto_url != "-":
+                    endpoint = f"{WA_API_URL.rstrip('/')}/messages/image"
+                    payload = {
+                        "to": number.strip(),
+                        "media": foto_url,  # URL Gambar
+                        "caption": pesan_wa # Pesan menjadi caption
+                    }
+                # JIKA TIDAK ADA FOTO, GUNAKAN ENDPOINT TEKS
+                else:
+                    endpoint = f"{WA_API_URL.rstrip('/')}/messages/text"
+                    payload = {
+                        "to": number.strip(),
+                        "body": pesan_wa
+                    }
                 
                 response = requests.post(endpoint, headers=headers, json=payload, timeout=10)
                 
@@ -405,7 +409,6 @@ if 'notif_sukses' in st.session_state:
     st.success(st.session_state['notif_sukses'])
     del st.session_state['notif_sukses']
 
-# MODIFIKASI: Menambahkan class 'main-header' agar bisa dikendalikan oleh CSS mobile responsive
 st.markdown(f"<h3 class='main-header' style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
@@ -499,9 +502,14 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                         st.session_state['df_data'] = df
                         with st.spinner("Menyinkronkan ke Cloud..."):
                             sukses = save_data(df)
+                        
                         if sukses:
-                            # TRIGGER EMAIL & WA OTOMATIS DISINI
-                            send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli) # Melempar kategori_asli sebagai argumen baru
+                            # Tentukan foto terakhir yg akan dikirim via notifikasi
+                            foto_terbaru = link_foto if link_foto else (foto_saat_ini if foto_saat_ini.startswith("http") else None)
+                            
+                            # TRIGGER EMAIL & WA OTOMATIS DISINI BERSAMA FOTO
+                            send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, foto_terbaru)
+                            
                             st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis."
                             st.rerun()
                     else:
