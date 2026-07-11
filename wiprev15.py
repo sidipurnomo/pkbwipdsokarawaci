@@ -21,9 +21,9 @@ WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # --- TAMBAHAN: KONFIGURASI NOMOR WA TARGET ---
-WA_SA_BR = ["628111111111"] # 1 Nomor WA SA Body Repair
-WA_SA_GR = ["628222222221", "628222222222", "628222222223"] # 3 Nomor WA SA General Repair
-WA_ADMIN_PART = ["628333333331", "628333333332"] # 2 Nomor WA Admin Part
+WA_SA_BR = ["6281399211266"] # 1 Nomor WA SA Body Repair
+WA_SA_GR = ["6281366664391", "6283893470438", "628558825962"] # 3 Nomor WA SA General Repair
+WA_ADMIN_PART = ["6289630028860", "6285888874700"] # 2 Nomor WA Admin Part
 # ---------------------------------------------
 
 # ==========================================
