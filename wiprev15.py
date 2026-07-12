@@ -189,9 +189,8 @@ def load_data():
         
         df = pd.DataFrame(data)
         
-        # FITUR BARU: Deduplikasi data memastikan yang terambil adalah update TERBARU berdasarkan No PKB
+        # Deduplikasi: ambil data paling terbaru berdasarkan No PKB
         if 'No PKB' in df.columns and 'No Polisi' in df.columns:
-            # Menggunakan No PKB sebagai identitas. Jika No PKB tidak valid (Tamu), pakai No Polisi.
             df['Identifier'] = df.apply(lambda x: str(x['No PKB']).strip() if str(x.get('No PKB', '')).strip() not in ['', '-', 'BELUM ADA', 'nan'] else str(x.get('No Polisi', '')).strip(), axis=1)
             df = df.drop_duplicates(subset=['Identifier'], keep='last').drop(columns=['Identifier']).reset_index(drop=True)
         elif 'No Polisi' in df.columns:
@@ -233,13 +232,44 @@ def get_merged_data():
     new_df = load_data()
     if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
         old_df = st.session_state['df_data']
-        if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns and 'Status Pekerjaan' in old_df.columns:
-            old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan']))
+        if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns:
+            # 1. Sesuaikan status terbaru jika database ditimpa
+            old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan'])) if 'Status Pekerjaan' in old_df.columns else {}
+            old_ket_map = dict(zip(old_df['No Polisi'], old_df['Keterangan Lanjutan'])) if 'Keterangan Lanjutan' in old_df.columns else {}
+            old_foto_map = dict(zip(old_df['No Polisi'], old_df['Foto PKB'])) if 'Foto PKB' in old_df.columns else {}
+            
             if 'Status Pekerjaan' in new_df.columns:
-                new_df['Status Pekerjaan'] = new_df.apply(
-                    lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), 
-                    axis=1
-                )
+                new_df['Status Pekerjaan'] = new_df.apply(lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), axis=1)
+            if 'Keterangan Lanjutan' in new_df.columns:
+                new_df['Keterangan Lanjutan'] = new_df.apply(lambda row: old_ket_map.get(row['No Polisi'], row['Keterangan Lanjutan']), axis=1)
+            if 'Foto PKB' in new_df.columns:
+                new_df['Foto PKB'] = new_df.apply(lambda row: old_foto_map.get(row['No Polisi'], row['Foto PKB']), axis=1)
+            
+            # 2. Tangani data lama yang HILANG di data baru (karena ditimpa / terhapus)
+            new_nopol_list = new_df['No Polisi'].tolist()
+            missing_df = old_df[~old_df['No Polisi'].isin(new_nopol_list)].copy()
+            
+            if not missing_df.empty:
+                # Pindahkan secara otomatis ke Selesai
+                missing_df['Status Pekerjaan'] = 'Selesai'
+                if 'Keterangan Lanjutan' in missing_df.columns:
+                    missing_df['Keterangan Lanjutan'] = missing_df['Keterangan Lanjutan'].astype(str) + " [Auto-Selesai: Database ditimpa]"
+                else:
+                    missing_df['Keterangan Lanjutan'] = "[Auto-Selesai: Database ditimpa]"
+                
+                missing_df['Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Gabungkan kembali
+                new_df = pd.concat([new_df, missing_df], ignore_index=True)
+                
+                # Sinkronisasi ke belakang secara senyap agar Cloud update data yang 'Auto-Selesai'
+                try:
+                    df_to_save = new_df.drop(columns=['Umur PKB (Hari)', 'Progress (%)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
+                    df_to_save = df_to_save.fillna("-").astype(str)
+                    requests.post(APPS_SCRIPT_URL, json=[df_to_save.columns.tolist()] + df_to_save.values.tolist(), timeout=10)
+                except:
+                    pass
+
     return new_df
 
 def save_data(df):
@@ -400,7 +430,7 @@ if 'notif_sukses' in st.session_state:
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
-# FITUR BARU: Pemisahan Data WIP dan Selesai Secara Ketat
+# FITUR: Pemisahan Data WIP dan Selesai Secara Ketat
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
 df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
 
@@ -420,7 +450,7 @@ def render_update_form(kategori_filter):
     st.markdown(f"#### 🔎 Pencarian Kendaraan WIP ({kategori_filter})")
     if df_wip.empty: return st.warning("Tidak ada data WIP saat ini.")
     
-    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai" (Diambil dari df_wip)
+    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai"
     df_kategori = df_wip[df_wip['Kategori'] == kategori_filter]
     list_nopol = df_kategori['No Polisi'].dropna().unique().tolist()
     
@@ -436,7 +466,7 @@ def render_mobile_form():
     st.markdown("#### 📱 Menu Update Mobile (WIP)")
     if df_wip.empty: return st.warning("Tidak ada data WIP saat ini.")
     
-    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai" (Diambil dari df_wip)
+    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai"
     list_nopol = df_wip['No Polisi'].dropna().unique().tolist()
     
     tab1, tab2 = st.tabs(["📝 Pilih dari List", "⌨️ Cari Manual"])
@@ -447,7 +477,6 @@ def render_mobile_form():
     execute_form_logic(selected_nopol, list_nopol, None)
 
 def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
-    # Logika pengecekan df di sini menggunakan original `df` untuk mendukung pengetikan manual (termasuk un-selesai jika dibutuhkan darurat)
     if selected_nopol and selected_nopol in df['No Polisi'].values:
         data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1] 
         kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
