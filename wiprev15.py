@@ -148,7 +148,7 @@ with st.sidebar:
     st.markdown("<h3 style='text-align:center; color:#2e7d32;'>Astra Daihatsu<br>Karawaci</h3>", unsafe_allow_html=True)
     menu_pilihan = st.radio(
         "Pilih Halaman:", 
-        ["SEMUA WIP", "TAMPILAN MOBILE", "ANTREAN GR", "UPDATE GR", "ANTREAN BR", "UPDATE BR", "RIWAYAT SELESAI", "➕ TAMBAH MOBIL TAMU"], 
+        ["📊 SEMUA WIP", "📱 TAMPILAN MOBILE", "🛠️ ANTREAN GR", "📝 UPDATE GR", "🔨 ANTREAN BR", "📝 UPDATE BR", "✅ RIWAYAT SELESAI", "➕ TAMBAH MOBIL TAMU"], 
         label_visibility="collapsed"
     )
     
