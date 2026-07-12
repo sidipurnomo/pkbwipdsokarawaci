@@ -128,7 +128,7 @@ def render_login():
         username = st.text_input("👤 Username")
         password = st.text_input("🔑 Password", type="password")
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.form_submit_button("LOGIN KE SISTEM", use_container_width=True):
+        if st.form_submit_button("LOGIN", use_container_width=True):
             if username == "dsokarawaci" and password == "adminkarawaci":
                 st.session_state['logged_in'] = True
                 st.session_state['last_activity'] = time.time() 
@@ -148,7 +148,7 @@ with st.sidebar:
     st.markdown("<h3 style='text-align:center; color:#2e7d32;'>Astra Daihatsu<br>Karawaci</h3>", unsafe_allow_html=True)
     menu_pilihan = st.radio(
         "Pilih Halaman:", 
-        ["📊 SEMUA WIP", "📱 TAMPILAN MOBILE", "🛠️ ANTREAN GR", "📝 UPDATE GR", "🔨 ANTREAN BR", "📝 UPDATE BR", "✅ RIWAYAT SELESAI", "➕ TAMBAH MOBIL TAMU"], 
+        ["SEMUA WIP", "TAMPILAN MOBILE", "ANTREAN GR", "UPDATE GR", "ANTREAN BR", "UPDATE BR", "RIWAYAT SELESAI", "➕ TAMBAH MOBIL TAMU"], 
         label_visibility="collapsed"
     )
     
