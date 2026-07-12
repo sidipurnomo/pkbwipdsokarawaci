@@ -31,7 +31,8 @@ st.set_page_config(
     page_title="PKB WIP DSO KARAWACI", 
     page_icon=DAIHATSU_LOGO_PNG, 
     layout="wide", 
-    initial_sidebar_state="expanded")
+    initial_sidebar_state="expanded"
+)
 
 # ==========================================
 # 🎨 CSS STYLING
@@ -147,6 +148,17 @@ if not df.empty:
                         time.sleep(1)
                         st.rerun()
 
+    elif menu_pilihan == "➕ TAMBAH MOBIL":
+        with st.form("form_tambah"):
+            nopol = st.text_input("No Polisi").upper()
+            tipe = st.text_input("Tipe Kendaraan")
+            kategori = st.selectbox("Kategori", ["General Repair", "Body Repair"])
+            if st.form_submit_button("TAMBAH", width='stretch'):
+                new_row = pd.DataFrame([{'No Polisi': nopol, 'Tipe Kendaraan': tipe, 'Kategori': kategori, 'Status Pekerjaan': 'Menunggu Pekerjaan'}])
+                df_updated = pd.concat([df, new_row], ignore_index=True)
+                if save_data(df_updated):
+                    st.success("Berhasil ditambah!")
+                    st.rerun()
     elif menu_pilihan == "➕ TAMBAH MOBIL":
         with st.form("form_tambah"):
             nopol = st.text_input("No Polisi").upper()
