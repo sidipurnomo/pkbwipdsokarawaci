@@ -126,7 +126,7 @@ def hitung_progress(kategori, status):
             return int(((br_steps.index(status) + 1) / len(br_steps)) * 85)
     return 0
 
-@st.cache_data(ttl=15) 
+@st.cache_data(ttl=20) 
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=20)
@@ -177,24 +177,6 @@ def load_data():
     except Exception as e:
         st.error(f"⚠️ Error koneksi database: {e}")
         return pd.DataFrame()
-
-def get_merged_data():
-    new_df = load_data()
-    # Melindungi status lokal yang belum tersimpan penuh ke cloud agar tidak tertimpa
-    if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
-        old_df = st.session_state['df_data']
-        if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns:
-            old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan']))
-            old_foto_map = dict(zip(old_df['No Polisi'], old_df['Foto PKB']))
-            old_ket_map = dict(zip(old_df['No Polisi'], old_df['Keterangan Lanjutan']))
-            
-            if 'Status Pekerjaan' in new_df.columns:
-                new_df['Status Pekerjaan'] = new_df.apply(lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), axis=1)
-            if 'Foto PKB' in new_df.columns:
-                new_df['Foto PKB'] = new_df.apply(lambda row: old_foto_map.get(row['No Polisi'], row.get('Foto PKB', '-')), axis=1)
-            if 'Keterangan Lanjutan' in new_df.columns:
-                new_df['Keterangan Lanjutan'] = new_df.apply(lambda row: old_ket_map.get(row['No Polisi'], row.get('Keterangan Lanjutan', '-')), axis=1)
-    return new_df
 
 def save_data(df):
     df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Progress (%)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
