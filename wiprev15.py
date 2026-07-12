@@ -15,9 +15,10 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis
-# ⚠️ CATATAN: Untuk keamanan production, sangat disarankan menggunakan st.secrets
+# ⚠️ CATATAN: Ganti "Bu***@07" dengan password asli Anda agar fitur email berjalan.
+# Untuk keamanan production, sangat disarankan menggunakan st.secrets
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
-SENDER_APP_PASSWORD = "Bulan@07" # App Password / Password Email
+SENDER_APP_PASSWORD = "Bu***@07" # App Password / Password Email
 WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
@@ -460,7 +461,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             curr_status = str(data_kendaraan.get('Status Pekerjaan', ''))
             idx = opsi_status.index(curr_status) if curr_status in opsi_status else 0
             
-            # Penambahan parameter `key` untuk mencegah error DuplicateWidgetID
+            # Key sudah ditambahkan untuk menghindari error DuplicateWidgetID
             new_status = st.selectbox("Progress Pekerjaan:", opsi_status, index=idx, key=f"status_{selected_nopol}")
             new_ket = st.text_area("Catatan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')), key=f"ket_{selected_nopol}")
             
