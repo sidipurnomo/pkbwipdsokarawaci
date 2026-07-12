@@ -31,8 +31,7 @@ st.set_page_config(
     page_title="PKB WIP DSO KARAWACI", 
     page_icon=DAIHATSU_LOGO_PNG, 
     layout="wide", 
-    initial_sidebar_state="expanded"
-)
+    initial_sidebar_state="expanded")
 
 # ==========================================
 # 🎨 CSS STYLING
