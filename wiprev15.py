@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart # PERBAIKAN: Import yang terlewat ditambahkan
 
 # ==========================================
 # KONFIGURASI CLOUD & API
@@ -16,13 +17,13 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 # Konfigurasi Notifikasi Otomatis
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
 SENDER_APP_PASSWORD = "Bu***@07" # Ingat untuk mengganti dengan password asli Anda
-WA_API_URL = "https://gate.whapi.cloud/" 
+WA_API_URL = "https://gate.whapi.cloud/"
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # Konfigurasi Nomor WA Target
-WA_SA_BR = ["6281399211266", "6285600199590"] 
-WA_SA_GR = ["6281366664391", "6283893470438", "628558825962", "6287774134574"] 
-WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
+WA_SA_BR = ["6281399211266", "6285600199590"]
+WA_SA_GR = ["6281366664391", "6283893470438", "628558825962", "6287774134574"]
+WA_ADMIN_PART = ["6289630028860", "6285888874700"]
 
 # ==========================================
 # LINK LOGO & PAGE CONFIG
@@ -30,9 +31,9 @@ WA_ADMIN_PART = ["6289630028860", "6285888874700"]
 DAIHATSU_LOGO_PNG = "https://images.seeklogo.com/logo-png/3/1/daihatsu-logo-png_seeklogo-38135.png"
 
 st.set_page_config(
-    page_title="PKB WIP DSO KARAWACI", 
-    page_icon=DAIHATSU_LOGO_PNG, 
-    layout="wide", 
+    page_title="PKB WIP DSO KARAWACI",
+    page_icon=DAIHATSU_LOGO_PNG,
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
@@ -126,8 +127,8 @@ def render_login():
         password = st.text_input("🔑 Password", type="password")
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
-        if st.form_submit_button("LOGIN KE SISTEM", width="stretch"):
+        # PERBAIKAN: Dikembalikan menggunakan use_container_width=True
+        if st.form_submit_button("LOGIN KE SISTEM", use_container_width=True):
             if username == "dsokarawaci" and password == "adminkarawaci":
                 st.session_state['logged_in'] = True
                 st.session_state['last_activity'] = time.time() 
@@ -237,14 +238,18 @@ def save_data(df):
 
 def upload_foto_cloud(img_file):
     url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
-    files = { "image": (img_file.name, img_file.getvalue(), img_file.type) }
+    # PERBAIKAN: Format payload file requests ke ImgBB agar lebih aman
+    files = { "image": img_file.getvalue() }
     try:
         res = requests.post(url, files=files, timeout=25)
         data = res.json()
         if res.status_code == 200 and 'data' in data:
             return data['data']['url']
-        return None
-    except Exception:
+        else:
+            st.error(f"ImgBB Error: {data.get('error', 'Unknown Error')}")
+            return None
+    except Exception as e:
+        st.error(f"Gagal mengupload foto: {e}")
         return None
 
 def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
@@ -264,8 +269,8 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
         server.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
         server.send_message(msg)
         server.quit()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Gagal kirim email: {e}") # Log exception untuk debugging
 
     # Kirim WA
     try:
@@ -284,20 +289,20 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
                 else:
                     payload = {"to": number.strip(), "body": pesan_wa}
                     requests.post(f"{WA_API_URL.rstrip('/')}/messages/text", headers=headers, json=payload, timeout=5)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Gagal kirim WA: {e}")
 
 # ==========================================
 # DASHBOARD UTAMA
 # ==========================================
 with st.sidebar:
     st.markdown("---")
-    # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
-    if st.button("🔄 REFRESH DATA", width="stretch"):
+    # PERBAIKAN: Dikembalikan menggunakan use_container_width=True
+    if st.button("🔄 REFRESH DATA", use_container_width=True):
         load_data.clear()
         st.session_state['df_data'] = get_merged_data() 
         st.rerun()
-    if st.button("LOGOUT", width="stretch"):
+    if st.button("LOGOUT", use_container_width=True):
         st.session_state['logged_in'] = False
         st.rerun()
 
@@ -353,14 +358,14 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             st.markdown("**📸 Foto Kondisi Kendaraan**")
             foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
             
-            # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
+            # PERBAIKAN: Gunakan use_column_width=True untuk merender gambar secara penuh
             if foto_saat_ini.startswith("http"): 
-                st.image(foto_saat_ini, caption="Foto Terakhir", width="stretch")
+                st.image(foto_saat_ini, caption="Foto Terakhir", use_column_width=True)
             
             uploaded_foto = st.file_uploader("Upload Foto Baru", type=['jpg', 'jpeg', 'png'], key=f"foto_{selected_nopol}")
 
-            # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
-            if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
+            # PERBAIKAN: Dikembalikan menggunakan use_container_width=True
+            if st.form_submit_button("💾 UPDATE DATA", use_container_width=True):
                 upload_sukses = True
                 link_foto = None
                 
@@ -387,21 +392,21 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                 else:
                     st.error("🛑 Gagal menyimpan karena error unggah foto.")
 
-# PERBAIKAN: Mengganti use_container_width=True dengan width="stretch" pada semua dataframe
+# PERBAIKAN: Dikembalikan menggunakan use_container_width=True pada semua dataframe
 if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
-        st.dataframe(df_wip.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), width="stretch", hide_index=True)
+        st.dataframe(df_wip.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
     elif menu_pilihan == "🛠️ ANTREAN GR": 
-        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'], width="stretch", hide_index=True)
+        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'], use_container_width=True, hide_index=True)
     elif menu_pilihan == "📝 UPDATE GR": 
         list_nopol = df[df['Kategori'] == 'General Repair']['No Polisi'].dropna().unique().tolist()
         execute_form_logic(st.selectbox("Pilih No Polisi", [""] + list_nopol, key="sel_gr"), list_nopol, 'General Repair')
     elif menu_pilihan == "🔨 ANTREAN BR": 
-        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'], width="stretch", hide_index=True)
+        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'], use_container_width=True, hide_index=True)
     elif menu_pilihan == "📝 UPDATE BR": 
         list_nopol = df[df['Kategori'] == 'Body Repair']['No Polisi'].dropna().unique().tolist()
         execute_form_logic(st.selectbox("Pilih No Polisi", [""] + list_nopol, key="sel_br"), list_nopol, 'Body Repair')
     elif menu_pilihan == "✅ RIWAYAT SELESAI": 
-        st.dataframe(df_selesai, width="stretch", hide_index=True)
+        st.dataframe(df_selesai, use_container_width=True, hide_index=True)
 else:
     st.info("Loading data atau database masih kosong.")
