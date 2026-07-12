@@ -9,26 +9,24 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # ==========================================
-# 🌟 KONFIGURASI CLOUD & API
+# KONFIGURASI CLOUD & API
 # ==========================================
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743QSzaDMItK2Npbdc4qcoGERdHM_R5Da-CvERDg7RbNampxysw/exec"
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis
-# ⚠️ CATATAN: Ganti "Bu***@07" dengan password asli Anda agar fitur email berjalan.
-# Untuk keamanan production, sangat disarankan menggunakan st.secrets
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
-SENDER_APP_PASSWORD = "Bu***@07" # App Password / Password Email
-WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
+SENDER_APP_PASSWORD = "Bu***@07" # Ganti dengan password asli saat deploy
+WA_API_URL = "https://gate.whapi.cloud/" 
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
-# --- TAMBAHAN: KONFIGURASI NOMOR WA TARGET ---
+# Konfigurasi Nomor WA Target
 WA_SA_BR = ["6281399211266", "6285600199590"] 
 WA_SA_GR = ["6281366664391", "6283893470438", "628558825962", "6287774134574"] 
 WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
 
 # ==========================================
-# 🌟 LINK LOGO
+# LINK LOGO & PAGE CONFIG
 # ==========================================
 DAIHATSU_LOGO_PNG = "https://images.seeklogo.com/logo-png/3/1/daihatsu-logo-png_seeklogo-38135.png"
 
@@ -40,7 +38,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 CSS STYLING
+# CSS STYLING
 # ==========================================
 st.markdown("""
 <style>
@@ -99,53 +97,18 @@ st.markdown("""
     div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: #1b5e20 !important; font-weight: 900 !important; font-size: 28px !important; text-align: center !important; width: 100% !important; }
     
     .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; }
-    
-    @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="metric-container"]) { 
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 12px !important;
-            padding-bottom: 10px;
-        }
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="metric-container"]) > div[data-testid="column"] { 
-            width: 100% !important;
-            min-width: 100% !important; 
-            margin-bottom: 0px !important;
-            padding: 0px !important;
-        }
-        
-        div[data-testid="metric-container"] {
-            min-height: 85px !important; 
-            padding: 12px 8px !important;
-            border-radius: 18px !important;
-        }
-        div[data-testid="metric-container"] label { 
-            font-size: 11px !important; 
-            margin-bottom: 2px !important;
-            line-height: 1.1 !important;
-            white-space: normal !important;
-        }
-        div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
-            font-size: 20px !important; 
-            line-height: 1.2 !important;
-        }
-
-        div[data-testid="stForm"] { border-radius: 15px !important; }
-        .title-glowing { font-size: 1.5rem !important; }
-        .title-glowing img { height: 30px !important; margin-right: 10px !important; }
-        
-        .main-header { font-size: 1.2rem !important; justify-content: center !important; }
-        .main-header img { height: 24px !important; margin-right: 8px !important; }
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔐 SISTEM LOGIN & AUTO LOGOUT
+# SISTEM LOGIN & AUTO LOGOUT
 # ==========================================
-if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-if 'last_activity' not in st.session_state: st.session_state['last_activity'] = time.time()
-if 'last_menu' not in st.session_state: st.session_state['last_menu'] = None
+if 'logged_in' not in st.session_state: 
+    st.session_state['logged_in'] = False
+if 'last_activity' not in st.session_state: 
+    st.session_state['last_activity'] = time.time()
+if 'last_menu' not in st.session_state: 
+    st.session_state['last_menu'] = None
 
 if st.session_state['logged_in']:
     if time.time() - st.session_state['last_activity'] > 1800:
@@ -157,13 +120,7 @@ if st.session_state['logged_in']:
 def render_login():
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown(f"<h1 class='title-glowing'><img src='{DAIHATSU_LOGO_PNG}' style='height: 40px; margin-right: 15px;'> PKB WIP DSO KARAWACI</h1>", unsafe_allow_html=True)
-    st.markdown("""
-    <style>
-        div[data-testid="stForm"] { max-width: 450px !important; margin: 0 auto !important; padding: 2rem !important; box-shadow: 0px 8px 20px rgba(0,0,0,0.05) !important; }
-        @media (max-width: 768px) { div[data-testid="stForm"] { max-width: 90% !important; padding: 1.5rem !important; margin-top: 20px !important; } }
-    </style>
-    """, unsafe_allow_html=True)
-
+    
     with st.form("login_form"):
         st.markdown("<h3 style='text-align: center;'>🔐 Login Dashboard</h3>", unsafe_allow_html=True)
         username = st.text_input("👤 Username")
@@ -182,7 +139,7 @@ if not st.session_state['logged_in']:
     st.stop()
 
 # ==========================================
-# 🚪 SIDEBAR MENU KIRI
+# SIDEBAR MENU KIRI
 # ==========================================
 with st.sidebar:
     st.markdown(f"<div style='text-align: center;'><img src='{DAIHATSU_LOGO_PNG}' style='width: 120px;'></div>", unsafe_allow_html=True)
@@ -198,7 +155,7 @@ with st.sidebar:
         st.session_state['last_menu'] = menu_pilihan
 
 # ==========================================
-# 🌐 INTEGRASI CLOUD & FUNGSI BARU
+# INTEGRASI CLOUD & FUNGSI 
 # ==========================================
 def hitung_progress(kategori, status):
     if status == "Selesai": return 100
@@ -218,6 +175,8 @@ def hitung_progress(kategori, status):
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
+        if response.status_code != 200:
+            return pd.DataFrame()
         data = response.json()
         if not data: return pd.DataFrame()
         
@@ -229,12 +188,6 @@ def load_data():
         for col in kolom_wajib:
             if col not in df.columns: df[col] = "-"
         
-        if 'No PKB' in df.columns and 'Tipe Kendaraan' in df.columns:
-            cols = list(df.columns)
-            cols.remove('Tipe Kendaraan') 
-            cols.insert(cols.index('No PKB') + 1, 'Tipe Kendaraan') 
-            df = df[cols] 
-            
         if 'Tgl PKB' in df.columns:
             df['Tgl PKB'] = pd.to_datetime(df['Tgl PKB'], errors='coerce')
             df['Tgl PKB'] = df['Tgl PKB'].dt.tz_localize(None)
@@ -242,12 +195,6 @@ def load_data():
             df['Umur PKB (Hari)'] = (now - df['Tgl PKB']).dt.days
             df['Umur PKB (Hari)'] = df['Umur PKB (Hari)'].fillna(0).astype(int)
             df['Tgl PKB'] = df['Tgl PKB'].dt.strftime('%Y-%m-%d').fillna("-")
-            
-            cols = list(df.columns)
-            if 'Umur PKB (Hari)' in cols and 'Tgl PKB' in cols:
-                cols.remove('Umur PKB (Hari)')
-                cols.insert(cols.index('Tgl PKB') + 1, 'Umur PKB (Hari)')
-                df = df[cols]
                 
         if 'Kategori' in df.columns and 'Status Pekerjaan' in df.columns:
             df['Progress (%)'] = df.apply(lambda row: hitung_progress(row['Kategori'], row['Status Pekerjaan']), axis=1)
@@ -295,90 +242,56 @@ def upload_foto_cloud(img_file):
         data = res.json()
         if res.status_code == 200 and 'data' in data:
             return data['data']['url']
-        else:
-            st.error(f"❌ ImgBB Menolak Upload: {data.get('error', {}).get('message', res.text)}")
-            return None
-    except Exception as e:
-        st.error(f"❌ Gagal upload foto ke Cloud: {e}")
-    return None
+        return None
+    except Exception:
+        return None
 
 def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
+    # Kirim Email
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
         msg['To'] = "sidi.purnomo@dso.astra.co.id"
-        msg['Subject'] = f"Update Status Pekerjaan Otomatis - No Polisi: {nopol}"
+        msg['Subject'] = f"Update Status Pekerjaan - No Polisi: {nopol}"
         
-        body = f"selamat siang sahabat,berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
-        
-        if foto_url and foto_url != "-":
-            body += f"\n\nLampiran Foto Kondisi Terkini: {foto_url}"
+        body = f"Berikut update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus: {status}\nCatatan: {catatan}"
+        if foto_url and foto_url != "-": body += f"\nFoto Terkini: {foto_url}"
             
-        body += "\n\nSalam, Admin Service."
-        
         msg.attach(MIMEText(body, 'plain'))
-        
         server = smtplib.SMTP('smtp.office365.com', 587)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
         server.send_message(msg)
         server.quit()
-        print("✅ Email background berhasil dikirim!")
-    except Exception as e:
-        print(f"❌ Gagal mengirim email background: {e}")
+    except Exception:
+        pass
 
+    # Kirim WA
     try:
-        pesan_wa = f"Testing Selamat Siang Sahabat,Berikut kami kirimkan update pekerjaan pada kendaraan No Polisi {nopol}.\nStatus Terkini: {status}\nCatatan: {catatan}"
-        
+        pesan_wa = f"Update pekerjaan kendaraan No Polisi {nopol}.\nStatus: {status}\nCatatan: {catatan}"
         target_numbers = []
-        if kategori == "Body Repair":
-            target_numbers.extend(WA_SA_BR)
-        elif kategori == "General Repair":
-            target_numbers.extend(WA_SA_GR)
+        if kategori == "Body Repair": target_numbers.extend(WA_SA_BR)
+        elif kategori == "General Repair": target_numbers.extend(WA_SA_GR)
+        if status == "Menunggu Part": target_numbers.extend(WA_ADMIN_PART)
             
-        if status == "Menunggu Part":
-            target_numbers.extend(WA_ADMIN_PART)
-            
-        target_numbers = list(set(target_numbers))
-        
-        headers = {
-            'Authorization': f"Bearer {WA_API_TOKEN}",
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
-        
-        for number in target_numbers:
+        headers = {'Authorization': f"Bearer {WA_API_TOKEN}", 'Content-Type': 'application/json'}
+        for number in list(set(target_numbers)):
             if number.strip():  
                 if foto_url and foto_url != "-":
-                    endpoint = f"{WA_API_URL.rstrip('/')}/messages/image"
-                    payload = {
-                        "to": number.strip(),
-                        "media": foto_url,
-                        "caption": pesan_wa 
-                    }
+                    payload = {"to": number.strip(), "media": foto_url, "caption": pesan_wa}
+                    requests.post(f"{WA_API_URL.rstrip('/')}/messages/image", headers=headers, json=payload, timeout=5)
                 else:
-                    endpoint = f"{WA_API_URL.rstrip('/')}/messages/text"
-                    payload = {
-                        "to": number.strip(),
-                        "body": pesan_wa
-                    }
-                
-                response = requests.post(endpoint, headers=headers, json=payload, timeout=10)
-                
-                if response.status_code == 200:
-                    print(f"✅ WhatsApp background berhasil dikirim ke {number}!")
-                else:
-                    print(f"❌ Gagal mengirim WA ke {number}. Code: {response.status_code}, Res: {response.text}")
-            
-    except Exception as e:
-        print(f"❌ Gagal memproses WA background: {e}")
+                    payload = {"to": number.strip(), "body": pesan_wa}
+                    requests.post(f"{WA_API_URL.rstrip('/')}/messages/text", headers=headers, json=payload, timeout=5)
+    except Exception:
+        pass
 
 # ==========================================
-# 📊 DASHBOARD & APP LOGIC
+# DASHBOARD UTAMA
 # ==========================================
 with st.sidebar:
     st.markdown("---")
-    if st.button("🔄 REFRESH DATA DARI CLOUD", use_container_width=True):
+    if st.button("🔄 REFRESH DATA", use_container_width=True):
         load_data.clear()
         st.session_state['df_data'] = get_merged_data() 
         st.rerun()
@@ -413,36 +326,7 @@ else:
     m2.metric(label="Antrean GR", value="0 Unit")
     m3.metric(label="Antrean BR", value="0 Unit")
 m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
-
 st.markdown("<hr style='border: 1px solid #dcedc8; margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
-
-def render_update_form(kategori_filter):
-    st.markdown(f"#### 🔎 Pencarian Kendaraan ({kategori_filter})")
-    if df.empty: return st.warning("Database kosong.")
-    
-    df_kategori = df[df['Kategori'] == kategori_filter]
-    list_nopol = df_kategori['No Polisi'].dropna().unique().tolist()
-    
-    metode_cari = st.radio("Metode:", ["Pilih dari List", "Ketik Manual"], key=f"rad_{kategori_filter}", horizontal=True)
-    if metode_cari == "Pilih dari List":
-        selected_nopol = st.selectbox("Pilih No Polisi", [""] + list_nopol, key=f"sel_{kategori_filter}")
-    else:
-        selected_nopol = st.text_input("Ketik No Polisi", key=f"txt_{kategori_filter}").strip().upper()
-
-    execute_form_logic(selected_nopol, list_nopol, kategori_filter)
-
-def render_mobile_form():
-    st.markdown("#### 📱 Menu Update Mobile")
-    if df.empty: return st.warning("Database kosong.")
-    
-    list_nopol = df['No Polisi'].dropna().unique().tolist()
-    
-    tab1, tab2 = st.tabs(["📝 Pilih dari List", "⌨️ Cari Manual"])
-    with tab1: nopol_list = st.selectbox("Cari No Polisi Kendaraan", [""] + list_nopol, key="mob_list")
-    with tab2: nopol_man = st.text_input("Ketik No Polisi", key="mob_man").strip().upper()
-        
-    selected_nopol = nopol_list if nopol_list else nopol_man
-    execute_form_logic(selected_nopol, list_nopol, None)
 
 def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
     if selected_nopol and selected_nopol in list_nopol:
@@ -461,7 +345,6 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             curr_status = str(data_kendaraan.get('Status Pekerjaan', ''))
             idx = opsi_status.index(curr_status) if curr_status in opsi_status else 0
             
-            # Key sudah ditambahkan untuk menghindari error DuplicateWidgetID
             new_status = st.selectbox("Progress Pekerjaan:", opsi_status, index=idx, key=f"status_{selected_nopol}")
             new_ket = st.text_area("Catatan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')), key=f"ket_{selected_nopol}")
             
@@ -470,129 +353,49 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             if foto_saat_ini.startswith("http"): 
                 st.image(foto_saat_ini, caption="Foto Terakhir", use_container_width=True)
             
-            uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'], key=f"foto_{selected_nopol}")
+            uploaded_foto = st.file_uploader("Upload Foto Baru", type=['jpg', 'jpeg', 'png'], key=f"foto_{selected_nopol}")
 
             if st.form_submit_button("💾 UPDATE DATA", use_container_width=True):
-                if kategori_asli == "Body Repair" and uploaded_foto is None:
-                    st.error("🛑 GAGAL UPDATE: Kategori Body Repair DIWAJIBKAN mengunggah foto kondisi kendaraan saat update status!")
+                upload_sukses = True
+                link_foto = None
+                
+                if uploaded_foto is not None:
+                    with st.spinner("Mengupload foto..."):
+                        link_foto = upload_foto_cloud(uploaded_foto)
+                        if link_foto: df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
+                        else: upload_sukses = False 
+                
+                if upload_sukses:
+                    df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
+                    df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
+                    df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    st.session_state['df_data'] = df
+                    with st.spinner("Menyinkronkan ke Cloud..."):
+                        sukses = save_data(df)
+                    
+                    if sukses:
+                        foto_terbaru = link_foto if link_foto else (foto_saat_ini if foto_saat_ini.startswith("http") else None)
+                        send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, foto_terbaru)
+                        st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} diperbarui!"
+                        st.rerun()
                 else:
-                    upload_sukses = True
-                    link_foto = None
-                    
-                    if uploaded_foto is not None:
-                        with st.spinner("Mengupload foto..."):
-                            link_foto = upload_foto_cloud(uploaded_foto)
-                            if link_foto: df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
-                            else: upload_sukses = False 
-                    
-                    if upload_sukses:
-                        df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
-                        df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
-                        df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        st.session_state['df_data'] = df
-                        with st.spinner("Menyinkronkan ke Cloud..."):
-                            sukses = save_data(df)
-                        
-                        if sukses:
-                            foto_terbaru = link_foto if link_foto else (foto_saat_ini if foto_saat_ini.startswith("http") else None)
-                            send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, foto_terbaru)
-                            st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis."
-                            st.rerun()
-                    else:
-                        st.error("🛑 Gagal menyimpan karena error unggah foto.")
+                    st.error("🛑 Gagal menyimpan karena error unggah foto.")
 
 if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
-        df_display = df_wip.copy()
-        
-        column_configs = {
-            "Aksi WA Part 1": st.column_config.LinkColumn("Hubungi WA 1", display_text="💬 Chat Part 1"),
-            "Aksi WA Part 2": st.column_config.LinkColumn("Hubungi WA 2", display_text="💬 Chat Part 2"),
-            "Aksi Email Part": st.column_config.LinkColumn("Hubungi via Email", display_text="📧 Email Admin Part")
-        }
-        
-        if 'Progress (%)' in df_display.columns:
-            column_configs["Progress (%)"] = st.column_config.ProgressColumn(
-                "Persentase Selesai",
-                help="Bar Progress Status Pekerjaan",
-                format="%d%%",
-                min_value=0,
-                max_value=100
-            )
-
-        st.dataframe(
-            df_display.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_display.columns else []), 
-            use_container_width=True, hide_index=True,
-            column_config=column_configs
-        )
-    elif menu_pilihan == "📱 TAMPILAN MOBILE":
-        render_mobile_form()
+        st.dataframe(df_wip.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
     elif menu_pilihan == "🛠️ ANTREAN GR": 
-        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'].style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
+        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'], use_container_width=True, hide_index=True)
     elif menu_pilihan == "📝 UPDATE GR": 
-        render_update_form("General Repair")
+        list_nopol = df[df['Kategori'] == 'General Repair']['No Polisi'].dropna().unique().tolist()
+        execute_form_logic(st.selectbox("Pilih No Polisi", [""] + list_nopol, key="sel_gr"), list_nopol, 'General Repair')
     elif menu_pilihan == "🔨 ANTREAN BR": 
-        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'].style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
+        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'], use_container_width=True, hide_index=True)
     elif menu_pilihan == "📝 UPDATE BR": 
-        render_update_form("Body Repair")
+        list_nopol = df[df['Kategori'] == 'Body Repair']['No Polisi'].dropna().unique().tolist()
+        execute_form_logic(st.selectbox("Pilih No Polisi", [""] + list_nopol, key="sel_br"), list_nopol, 'Body Repair')
     elif menu_pilihan == "✅ RIWAYAT SELESAI": 
-        st.dataframe(df_selesai.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_selesai.columns else []), use_container_width=True, hide_index=True)
-        
-    elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
-        st.markdown("#### 🚗 Input Kendaraan Tamu / Manual")
-        st.info("Fitur ini digunakan untuk memasukkan kendaraan yang belum terdaftar PKB (Non-PKB).")
-        
-        with st.form("form_input_tamu"):
-            c1, c2 = st.columns(2)
-            with c1:
-                nopol_baru = st.text_input("No Polisi *", key="tamu_nopol").strip().upper()
-                tipe_baru = st.text_input("Tipe Kendaraan *", key="tamu_tipe").strip()
-                kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"], key="tamu_kat")
-            with c2:
-                warna_baru = st.text_input("Warna Kendaraan", key="tamu_warna").strip()
-                foto_baru = st.file_uploader("Upload Foto Kendaraan", type=['jpg', 'jpeg', 'png'], key="tamu_foto")
-            
-            st.markdown("*Wajib diisi")
-            
-            if st.form_submit_button("💾 SIMPAN DATA KENDARAAN", use_container_width=True):
-                if not nopol_baru or not tipe_baru:
-                    st.error("⚠️ No Polisi dan Tipe Kendaraan wajib diisi!")
-                else:
-                    link_foto = "-"
-                    upload_sukses = True
-                    
-                    if foto_baru is not None:
-                        with st.spinner("Mengupload foto..."):
-                            link = upload_foto_cloud(foto_baru)
-                            if link: link_foto = link
-                            else: upload_sukses = False
-                    
-                    if upload_sukses:
-                        new_data = {col: "-" for col in df.columns}
-                        gabungan_tipe = f"{tipe_baru} ({warna_baru})" if warna_baru else tipe_baru
-                        
-                        new_data['No Polisi'] = nopol_baru
-                        new_data['Tipe Kendaraan'] = gabungan_tipe
-                        new_data['Kategori'] = kategori_baru
-                        new_data['Status Pekerjaan'] = "Menunggu Pekerjaan" if kategori_baru == "General Repair" else "Antrian Pekerjaan"
-                        new_data['Tgl PKB'] = datetime.now().strftime("%Y-%m-%d")
-                        new_data['Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        new_data['Nama Customer'] = "TAMU / NON-PKB"
-                        new_data['No PKB'] = "BELUM ADA"
-                        new_data['Foto PKB'] = link_foto
-                        
-                        df_new_row = pd.DataFrame([new_data])
-                        df_updated = pd.concat([df, df_new_row], ignore_index=True)
-                        
-                        st.session_state['df_data'] = df_updated
-                        with st.spinner("Menyinkronkan ke Cloud..."):
-                            sukses = save_data(df_updated)
-                        
-                        if sukses:
-                            st.session_state['notif_sukses'] = f"✅ Kendaraan Tamu {nopol_baru} berhasil didaftarkan!"
-                            st.rerun()
-                    else:
-                        st.error("🛑 Gagal menyimpan karena error unggah foto.")
+        st.dataframe(df_selesai, use_container_width=True, hide_index=True)
 else:
     st.info("Loading data atau database masih kosong.")
