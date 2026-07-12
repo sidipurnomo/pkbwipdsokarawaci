@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 # ==========================================
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743QSzaDMItK2Npbdc4qcoGERdHM_R5Da-CvERDg7RbNampxysw/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw3_oAXnBuqUHwYAQDdlka4jfJY2bv8JTb--dTOK9giH1X-PIVEpFE0r4vgugs2YsggNQ/exec"
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis (Ganti dengan data milikmu)
