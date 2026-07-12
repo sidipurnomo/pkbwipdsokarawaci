@@ -15,6 +15,7 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis
+# ⚠️ CATATAN: Untuk keamanan production, sangat disarankan menggunakan st.secrets
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
 SENDER_APP_PASSWORD = "Bulan@07" # App Password / Password Email
 WA_API_URL = "https://gate.whapi.cloud/" # Base URL Whapi Cloud
@@ -423,9 +424,9 @@ def render_update_form(kategori_filter):
     
     metode_cari = st.radio("Metode:", ["Pilih dari List", "Ketik Manual"], key=f"rad_{kategori_filter}", horizontal=True)
     if metode_cari == "Pilih dari List":
-        selected_nopol = st.selectbox("Pilih No Polisi", [""] + list_nopol)
+        selected_nopol = st.selectbox("Pilih No Polisi", [""] + list_nopol, key=f"sel_{kategori_filter}")
     else:
-        selected_nopol = st.text_input("Ketik No Polisi").strip().upper()
+        selected_nopol = st.text_input("Ketik No Polisi", key=f"txt_{kategori_filter}").strip().upper()
 
     execute_form_logic(selected_nopol, list_nopol, kategori_filter)
 
@@ -459,15 +460,16 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             curr_status = str(data_kendaraan.get('Status Pekerjaan', ''))
             idx = opsi_status.index(curr_status) if curr_status in opsi_status else 0
             
-            new_status = st.selectbox("Progress Pekerjaan:", opsi_status, index=idx)
-            new_ket = st.text_area("Catatan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')))
+            # Penambahan parameter `key` untuk mencegah error DuplicateWidgetID
+            new_status = st.selectbox("Progress Pekerjaan:", opsi_status, index=idx, key=f"status_{selected_nopol}")
+            new_ket = st.text_area("Catatan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')), key=f"ket_{selected_nopol}")
             
             st.markdown("**📸 Foto Kondisi Kendaraan**")
             foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
             if foto_saat_ini.startswith("http"): 
                 st.image(foto_saat_ini, caption="Foto Terakhir", use_container_width=True)
             
-            uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'])
+            uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'], key=f"foto_{selected_nopol}")
 
             if st.form_submit_button("💾 UPDATE DATA", use_container_width=True):
                 if kategori_asli == "Body Repair" and uploaded_foto is None:
@@ -543,12 +545,12 @@ if not df.empty:
         with st.form("form_input_tamu"):
             c1, c2 = st.columns(2)
             with c1:
-                nopol_baru = st.text_input("No Polisi *").strip().upper()
-                tipe_baru = st.text_input("Tipe Kendaraan *").strip()
-                kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
+                nopol_baru = st.text_input("No Polisi *", key="tamu_nopol").strip().upper()
+                tipe_baru = st.text_input("Tipe Kendaraan *", key="tamu_tipe").strip()
+                kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"], key="tamu_kat")
             with c2:
-                warna_baru = st.text_input("Warna Kendaraan").strip()
-                foto_baru = st.file_uploader("Upload Foto Kendaraan", type=['jpg', 'jpeg', 'png'])
+                warna_baru = st.text_input("Warna Kendaraan", key="tamu_warna").strip()
+                foto_baru = st.file_uploader("Upload Foto Kendaraan", type=['jpg', 'jpeg', 'png'], key="tamu_foto")
             
             st.markdown("*Wajib diisi")
             
