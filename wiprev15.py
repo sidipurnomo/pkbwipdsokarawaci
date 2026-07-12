@@ -16,7 +16,7 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
-SENDER_APP_PASSWORD = "Bu***@07" # Ganti dengan password asli saat deploy
+SENDER_APP_PASSWORD = "Bu***@07" # Ganti dengan password asli agar email bisa terkirim
 WA_API_URL = "https://gate.whapi.cloud/" 
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
