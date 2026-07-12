@@ -14,12 +14,151 @@ from email.mime.multipart import MIMEMultipart
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw3_oAXnBuqUHwYAQDdlka4jfJY2bv8JTb--dTOK9giH1X-PIVEpFE0r4vgugs2YsggNQ/exec"
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
-# Konfigurasi Notifikasi Otomatis (Ganti dengan data milikmu)
+# Konfigurasi Notifikasi Otomatis
 SENDER_EMAIL = "emailkamu@gmail.com"
-SENDER_APP_PASSWORD = "password_aplikasi_gmail_kamu" # Gunakan App Password, bukan password biasa
-WA_API_URL = "https://gate.whapi.cloud/" # Contoh menggunakan Fonnte
+SENDER_APP_PASSWORD = "password_aplikasi_gmail_kamu"
+WA_API_URL = "https://gate.whapi.cloud/" 
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
+# --- KONFIGURASI NOMOR WA ---
+WA_SA_BR = ["6281399211266", "6285600199590"] 
+WA_SA_GR = ["6281366664391", "6283893470438", "628558825962", "6287774134574"] 
+WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
+
+DAIHATSU_LOGO_PNG = "https://images.seeklogo.com/logo-png/3/1/daihatsu-logo-png_seeklogo-38135.png"
+
+st.set_page_config(
+    page_title="PKB WIP DSO KARAWACI", 
+    page_icon=DAIHATSU_LOGO_PNG, 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
+
+# ==========================================
+# 🎨 CSS STYLING
+# ==========================================
+st.markdown("""
+<style>
+    .stApp { background-color: #f7fdf7 !important; }
+    div.stButton > button { border-radius: 8px; border: 1px solid #4caf50; background-color: transparent; color: #2e7d32; font-weight: bold; }
+    div.stButton > button:hover { background-color: #4caf50; color: white; }
+    .title-glowing { text-align: center; color: #2e7d32; text-shadow: 2px 2px 4px rgba(76, 175, 80, 0.3); font-family: 'Arial Black', sans-serif; }
+</style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 🔐 SISTEM LOGIN & LOGOUT
+# ==========================================
+if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+
+def render_login():
+    st.markdown("<h1 class='title-glowing'>PKB WIP DSO KARAWACI</h1>", unsafe_allow_html=True)
+    with st.form("login_form"):
+        username = st.text_input("👤 Username")
+        password = st.text_input("🔑 Password", type="password")
+        if st.form_submit_button("LOGIN KE SISTEM", width='stretch'):
+            if username == "dsokarawaci" and password == "adminkarawaci":
+                st.session_state['logged_in'] = True
+                st.rerun()
+            else:
+                st.error("⚠️ Username atau Password Salah!")
+
+if not st.session_state['logged_in']:
+    render_login()
+    st.stop()
+
+# ==========================================
+# 🌐 INTEGRASI CLOUD & FUNGSI
+# ==========================================
+@st.cache_data(ttl=15) 
+def load_data():
+    try:
+        response = requests.get(APPS_SCRIPT_URL, timeout=15)
+        return pd.DataFrame(response.json()) if response.status_code == 200 else pd.DataFrame()
+    except: return pd.DataFrame()
+
+def save_data(df):
+    df_to_save = df.fillna("-").astype(str)
+    data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
+    try:
+        response = requests.post(APPS_SCRIPT_URL, json=data_list, timeout=20)
+        return response.status_code == 200
+    except: return False
+
+def send_auto_email_wa(nopol, status, catatan, kategori):
+    # LOGIKA WHATSAPP DENGAN PEMISAHAN
+    target_wa = []
+    
+    # 1. Tentukan SA berdasarkan Kategori
+    if kategori == "Body Repair":
+        target_wa.extend(WA_SA_BR)
+    elif kategori == "General Repair":
+        target_wa.extend(WA_SA_GR)
+        
+    # 2. Jika Menunggu Part, Tambah Admin Part
+    if status == "Menunggu Part":
+        target_wa.extend(WA_ADMIN_PART)
+    
+    # Hapus duplikat nomor
+    target_wa = list(set(target_wa))
+    
+    pesan_wa = f"Update status kendaraan {nopol}.\nStatus: {status}\nCatatan: {catatan}"
+    
+    # Kirim ke setiap target
+    for number in target_wa:
+        try:
+            # Sesuaikan dengan format API WhatsApp Anda (contoh menggunakan payload JSON)
+            requests.post(WA_API_URL, json={'target': number, 'message': pesan_wa}, headers={'Authorization': WA_API_TOKEN}, timeout=5)
+        except: continue
+
+# ==========================================
+# 📊 DASHBOARD & APP LOGIC
+# ==========================================
+with st.sidebar:
+    menu_pilihan = st.radio("Pilih Halaman:", ["📊 SEMUA WIP", "📝 UPDATE GR", "📝 UPDATE BR", "➕ TAMBAH MOBIL"])
+    if st.button("🔄 REFRESH DATA", width='stretch'): st.rerun()
+    if st.button("LOGOUT", width='stretch'):
+        st.session_state['logged_in'] = False
+        st.rerun()
+
+df = load_data()
+
+if not df.empty:
+    if menu_pilihan == "📊 SEMUA WIP":
+        st.dataframe(df, width='stretch', hide_index=True)
+    
+    elif menu_pilihan in ["📝 UPDATE GR", "📝 UPDATE BR"]:
+        kat = "General Repair" if "GR" in menu_pilihan else "Body Repair"
+        list_nopol = df[df['Kategori'] == kat]['No Polisi'].unique().tolist()
+        selected = st.selectbox("Pilih No Polisi", [""] + list_nopol)
+        
+        if selected:
+            data = df[df['No Polisi'] == selected].iloc[-1]
+            with st.form(f"form_{selected}"):
+                new_status = st.selectbox("Status", ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Selesai"], index=0)
+                new_ket = st.text_area("Catatan", value=data.get('Keterangan Lanjutan', ''))
+                
+                if st.form_submit_button("💾 UPDATE & KIRIM NOTIFIKASI", width='stretch'):
+                    df.loc[df['No Polisi'] == selected, ['Status Pekerjaan', 'Keterangan Lanjutan']] = [new_status, new_ket]
+                    
+                    if save_data(df):
+                        # Panggil fungsi notifikasi dengan kategori
+                        send_auto_email_wa(selected, new_status, new_ket, kat)
+                        st.success("Data diperbarui & Notifikasi terkirim!")
+                        time.sleep(1)
+                        st.rerun()
+
+    elif menu_pilihan == "➕ TAMBAH MOBIL":
+        with st.form("form_tambah"):
+            nopol = st.text_input("No Polisi").upper()
+            tipe = st.text_input("Tipe Kendaraan")
+            kategori = st.selectbox("Kategori", ["General Repair", "Body Repair"])
+            if st.form_submit_button("TAMBAH", width='stretch'):
+                new_row = pd.DataFrame([{'No Polisi': nopol, 'Tipe Kendaraan': tipe, 'Kategori': kategori, 'Status Pekerjaan': 'Menunggu Pekerjaan'}])
+                df_updated = pd.concat([df, new_row], ignore_index=True)
+                if save_data(df_updated):
+                    st.success("Berhasil ditambah!")
+                    st.rerun()
 # ==========================================
 # 🌟 LINK LOGO SUPER JERNIH (VECTOR/PNG)
 # ==========================================
