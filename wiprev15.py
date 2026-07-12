@@ -16,7 +16,7 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Otomatis
 SENDER_EMAIL = "sidi.purnomo@dso.astra.co.id"
-SENDER_APP_PASSWORD = "Bu***@07" # Ganti dengan password asli agar email bisa terkirim
+SENDER_APP_PASSWORD = "Bu***@07" # Ingat untuk mengganti dengan password asli Anda
 WA_API_URL = "https://gate.whapi.cloud/" 
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
@@ -126,7 +126,9 @@ def render_login():
         username = st.text_input("👤 Username")
         password = st.text_input("🔑 Password", type="password")
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.form_submit_button("LOGIN KE SISTEM", use_container_width=True):
+        
+        # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
+        if st.form_submit_button("LOGIN KE SISTEM", width="stretch"):
             if username == "dsokarawaci" and password == "adminkarawaci":
                 st.session_state['logged_in'] = True
                 st.session_state['last_activity'] = time.time() 
@@ -291,11 +293,12 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url=None):
 # ==========================================
 with st.sidebar:
     st.markdown("---")
-    if st.button("🔄 REFRESH DATA", use_container_width=True):
+    # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
+    if st.button("🔄 REFRESH DATA", width="stretch"):
         load_data.clear()
         st.session_state['df_data'] = get_merged_data() 
         st.rerun()
-    if st.button("LOGOUT", use_container_width=True):
+    if st.button("LOGOUT", width="stretch"):
         st.session_state['logged_in'] = False
         st.rerun()
 
@@ -350,12 +353,15 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             
             st.markdown("**📸 Foto Kondisi Kendaraan**")
             foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
+            
+            # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
             if foto_saat_ini.startswith("http"): 
-                st.image(foto_saat_ini, caption="Foto Terakhir", use_container_width=True)
+                st.image(foto_saat_ini, caption="Foto Terakhir", width="stretch")
             
             uploaded_foto = st.file_uploader("Upload Foto Baru", type=['jpg', 'jpeg', 'png'], key=f"foto_{selected_nopol}")
 
-            if st.form_submit_button("💾 UPDATE DATA", use_container_width=True):
+            # PERBAIKAN: Mengganti use_container_width=True dengan width="stretch"
+            if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
                 upload_sukses = True
                 link_foto = None
                 
@@ -382,20 +388,21 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                 else:
                     st.error("🛑 Gagal menyimpan karena error unggah foto.")
 
+# PERBAIKAN: Mengganti use_container_width=True dengan width="stretch" pada semua dataframe
 if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
-        st.dataframe(df_wip.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), use_container_width=True, hide_index=True)
+        st.dataframe(df_wip.style.map(style_umur_pkb, subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []), width="stretch", hide_index=True)
     elif menu_pilihan == "🛠️ ANTREAN GR": 
-        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'], use_container_width=True, hide_index=True)
+        st.dataframe(df_wip[df_wip['Kategori'] == 'General Repair'], width="stretch", hide_index=True)
     elif menu_pilihan == "📝 UPDATE GR": 
         list_nopol = df[df['Kategori'] == 'General Repair']['No Polisi'].dropna().unique().tolist()
         execute_form_logic(st.selectbox("Pilih No Polisi", [""] + list_nopol, key="sel_gr"), list_nopol, 'General Repair')
     elif menu_pilihan == "🔨 ANTREAN BR": 
-        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'], use_container_width=True, hide_index=True)
+        st.dataframe(df_wip[df_wip['Kategori'] == 'Body Repair'], width="stretch", hide_index=True)
     elif menu_pilihan == "📝 UPDATE BR": 
         list_nopol = df[df['Kategori'] == 'Body Repair']['No Polisi'].dropna().unique().tolist()
         execute_form_logic(st.selectbox("Pilih No Polisi", [""] + list_nopol, key="sel_br"), list_nopol, 'Body Repair')
     elif menu_pilihan == "✅ RIWAYAT SELESAI": 
-        st.dataframe(df_selesai, use_container_width=True, hide_index=True)
+        st.dataframe(df_selesai, width="stretch", hide_index=True)
 else:
     st.info("Loading data atau database masih kosong.")
