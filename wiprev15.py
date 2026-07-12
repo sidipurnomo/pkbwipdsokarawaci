@@ -185,11 +185,9 @@ def load_data():
         df = pd.DataFrame(data)
         if 'No Polisi' in df.columns:
             df = df.drop_duplicates(subset=['No Polisi'], keep='last').reset_index(drop=True)
-
         kolom_wajib = ['Nama SA', 'Tipe Kendaraan', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB']
         for col in kolom_wajib:
             if col not in df.columns: df[col] = "-"
-        
         if 'Tgl PKB' in df.columns:
             df['Tgl PKB'] = pd.to_datetime(df['Tgl PKB'], errors='coerce')
             df['Tgl PKB'] = df['Tgl PKB'].dt.tz_localize(None)
@@ -197,15 +195,12 @@ def load_data():
             df['Umur PKB (Hari)'] = (now - df['Tgl PKB']).dt.days
             df['Umur PKB (Hari)'] = df['Umur PKB (Hari)'].fillna(0).astype(int)
             df['Tgl PKB'] = df['Tgl PKB'].dt.strftime('%Y-%m-%d').fillna("-")
-                
         if 'Kategori' in df.columns and 'Status Pekerjaan' in df.columns:
             df['Progress (%)'] = df.apply(lambda row: hitung_progress(row['Kategori'], row['Status Pekerjaan']), axis=1)
-
         return df
     except Exception as e:
         st.error(f"Gagal koneksi ke database Cloud: {e}")
         return pd.DataFrame()
-
 def get_merged_data():
     new_df = load_data()
     if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
