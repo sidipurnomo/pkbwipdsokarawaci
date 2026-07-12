@@ -2,11 +2,17 @@ import streamlit as st
 import pandas as pd
 import time
 import requests
-import json
+import io
 from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 # ==========================================
 # 🌟 KONFIGURASI CLOUD & API
@@ -233,31 +239,74 @@ def save_data(df):
     data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
     
     try:
-        response = requests.post(APPS_SCRIPT_URL, json=data_list, timeout=20)
-        if response.status_code == 200:
-            load_data.clear()
-            return True
-        else:
-            st.error(f"Gagal menyimpan data ke Cloud. Status Code: {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error sinkronisasi ke Cloud: {e}")
+        response = requests.post(APPS_SCRIPT_URL, json=data_list, timeout=30)
+    except requests.exceptions.RequestException as e:
+        st.error(f"❌ Error koneksi ke Google Sheets (cek internet/URL Apps Script): {e}")
         return False
 
-def upload_foto_cloud(img_file):
-    url = f"https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}"
-    files = { "image": (img_file.name, img_file.getvalue(), img_file.type) }
+    if response.status_code == 200:
+        load_data.clear()
+        return True
+    else:
+        st.error(f"❌ Gagal menyimpan data ke Cloud. Status Code: {response.status_code} | Respons: {response.text[:200]}")
+        return False
+
+def compress_image(img_file, max_dimension=1600, max_size_kb=1024):
+    """Kompres & resize foto sebelum upload agar lebih cepat & tidak mudah gagal di koneksi HP yang lambat."""
+    if not PIL_AVAILABLE:
+        return img_file.getvalue(), img_file.name, img_file.type or "image/jpeg"
     try:
-        res = requests.post(url, files=files, timeout=25)
-        data = res.json()
-        if res.status_code == 200 and 'data' in data:
-            return data['data']['url']
-        else:
-            st.error(f"❌ ImgBB Menolak Upload: {data.get('error', {}).get('message', res.text)}")
-            return None
+        img = Image.open(img_file)
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+
+        try:
+            resample = Image.Resampling.LANCZOS
+        except AttributeError:
+            resample = Image.LANCZOS
+
+        if max(img.size) > max_dimension:
+            img.thumbnail((max_dimension, max_dimension), resample)
+
+        buffer = io.BytesIO()
+        quality = 85
+        img.save(buffer, format="JPEG", quality=quality, optimize=True)
+        while buffer.tell() > max_size_kb * 1024 and quality > 30:
+            quality -= 10
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=quality, optimize=True)
+
+        buffer.seek(0)
+        new_name = img_file.name.rsplit('.', 1)[0] + "_compressed.jpg"
+        return buffer.getvalue(), new_name, "image/jpeg"
     except Exception as e:
-        st.error(f"❌ Gagal upload foto ke Cloud: {e}")
-    return None
+        print(f"Kompresi foto gagal, upload file asli: {e}")
+        return img_file.getvalue(), img_file.name, img_file.type or "image/jpeg"
+
+def upload_foto_cloud(img_file):
+    img_bytes, img_name, img_type = compress_image(img_file)
+    url = "https://api.imgbb.com/1/upload"
+    payload = {"key": IMGBB_API_KEY}
+    files = {"image": (img_name, img_bytes, img_type)}
+
+    try:
+        res = requests.post(url, data=payload, files=files, timeout=30)
+    except requests.exceptions.RequestException as e:
+        st.error(f"❌ Gagal terhubung ke server ImgBB (cek koneksi internet): {e}")
+        return None
+
+    try:
+        data = res.json()
+    except ValueError:
+        st.error(f"❌ ImgBB memberi respons tidak valid (Status {res.status_code}). Kemungkinan API Key salah/kedaluwarsa atau diblokir. Respons mentah: {res.text[:200]}")
+        return None
+
+    if res.status_code == 200 and data.get('success') and 'data' in data:
+        return data['data']['url']
+    else:
+        err_msg = data.get('error', {}).get('message', 'Penyebab tidak diketahui')
+        st.error(f"❌ ImgBB Menolak Upload (Status {res.status_code}): {err_msg}")
+        return None
 
 def send_auto_email_wa(nopol, status, catatan):
     # --- LOGIKA OTOMATIS EMAIL (Latar Belakang) ---
@@ -370,7 +419,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
         
         st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
         
-        with st.form(f"form_update_{selected_nopol}"):
+        with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
             st.markdown("**📌 Status & Keterangan**")
             
             opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
@@ -388,7 +437,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             if foto_saat_ini.startswith("http"): 
                 st.image(foto_saat_ini, caption="Foto Terakhir", use_container_width=True)
             
-            uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'])
+            uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'], key=f"upload_{selected_nopol}")
 
             if st.form_submit_button("💾 UPDATE DATA", use_container_width=True):
                 # FITUR BARU: Wajib foto jika kategori Body Repair
@@ -463,7 +512,7 @@ if not df.empty:
         st.markdown("#### 🚗 Input Kendaraan Tamu / Manual")
         st.info("Fitur ini digunakan untuk memasukkan kendaraan yang belum terdaftar PKB (Non-PKB).")
         
-        with st.form("form_input_tamu"):
+        with st.form("form_input_tamu", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
                 nopol_baru = st.text_input("No Polisi *").strip().upper()
