@@ -164,7 +164,7 @@ with st.sidebar:
         st.session_state['last_menu'] = menu_pilihan
 
 # ==========================================
-# 🌐 INTEGRASI CLOUD & FUNGSI
+# 🌐 INTEGRASI CLOUD & FUNGSI BARU
 # ==========================================
 def hitung_progress(kategori, status):
     if status == "Selesai": return 100
@@ -188,7 +188,13 @@ def load_data():
         if not data: return pd.DataFrame()
         
         df = pd.DataFrame(data)
-        if 'No Polisi' in df.columns:
+        
+        # FITUR BARU: Deduplikasi data memastikan yang terambil adalah update TERBARU berdasarkan No PKB
+        if 'No PKB' in df.columns and 'No Polisi' in df.columns:
+            # Menggunakan No PKB sebagai identitas. Jika No PKB tidak valid (Tamu), pakai No Polisi.
+            df['Identifier'] = df.apply(lambda x: str(x['No PKB']).strip() if str(x.get('No PKB', '')).strip() not in ['', '-', 'BELUM ADA', 'nan'] else str(x.get('No Polisi', '')).strip(), axis=1)
+            df = df.drop_duplicates(subset=['Identifier'], keep='last').drop(columns=['Identifier']).reset_index(drop=True)
+        elif 'No Polisi' in df.columns:
             df = df.drop_duplicates(subset=['No Polisi'], keep='last').reset_index(drop=True)
 
         kolom_wajib = ['Nama SA', 'Tipe Kendaraan', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB']
@@ -322,7 +328,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url="-"):
     if status == "Menunggu Part":
         target_wa.extend(WA_ADMIN_PART)
         
-    # Hapus duplikat nomor jika ada
+    # Hapus duplikat nomor jika ada nomor ganda
     target_wa = list(set(target_wa))
     
     # --- KIRIM WHATSAPP ---
@@ -394,6 +400,7 @@ if 'notif_sukses' in st.session_state:
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
+# FITUR BARU: Pemisahan Data WIP dan Selesai Secara Ketat
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
 df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
 
@@ -410,10 +417,11 @@ m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
 st.markdown("<hr style='border: 1px solid #dcedc8; margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
 def render_update_form(kategori_filter):
-    st.markdown(f"#### 🔎 Pencarian Kendaraan ({kategori_filter})")
-    if df.empty: return st.warning("Database kosong.")
+    st.markdown(f"#### 🔎 Pencarian Kendaraan WIP ({kategori_filter})")
+    if df_wip.empty: return st.warning("Tidak ada data WIP saat ini.")
     
-    df_kategori = df[df['Kategori'] == kategori_filter]
+    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai" (Diambil dari df_wip)
+    df_kategori = df_wip[df_wip['Kategori'] == kategori_filter]
     list_nopol = df_kategori['No Polisi'].dropna().unique().tolist()
     
     metode_cari = st.radio("Metode:", ["Pilih dari List", "Ketik Manual"], key=f"rad_{kategori_filter}", horizontal=True)
@@ -425,10 +433,11 @@ def render_update_form(kategori_filter):
     execute_form_logic(selected_nopol, list_nopol, kategori_filter)
 
 def render_mobile_form():
-    st.markdown("#### 📱 Menu Update Mobile")
-    if df.empty: return st.warning("Database kosong.")
+    st.markdown("#### 📱 Menu Update Mobile (WIP)")
+    if df_wip.empty: return st.warning("Tidak ada data WIP saat ini.")
     
-    list_nopol = df['No Polisi'].dropna().unique().tolist()
+    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai" (Diambil dari df_wip)
+    list_nopol = df_wip['No Polisi'].dropna().unique().tolist()
     
     tab1, tab2 = st.tabs(["📝 Pilih dari List", "⌨️ Cari Manual"])
     with tab1: nopol_list = st.selectbox("Cari No Polisi Kendaraan", [""] + list_nopol, key="mob_list")
@@ -438,7 +447,8 @@ def render_mobile_form():
     execute_form_logic(selected_nopol, list_nopol, None)
 
 def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
-    if selected_nopol and selected_nopol in list_nopol:
+    # Logika pengecekan df di sini menggunakan original `df` untuk mendukung pengetikan manual (termasuk un-selesai jika dibutuhkan darurat)
+    if selected_nopol and selected_nopol in df['No Polisi'].values:
         data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1] 
         kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
         
@@ -460,7 +470,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             st.markdown("**📸 Foto Kondisi Kendaraan**")
             foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
             if foto_saat_ini.startswith("http"): 
-                st.image(foto_saat_ini, caption="Foto Terakhir", width="stretch")
+                st.image(foto_saat_ini, caption="Foto Terakhir")
             
             uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'], key=f"upload_{selected_nopol}")
 
@@ -492,6 +502,8 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                             st.rerun()
                     else:
                         st.error("🛑 Gagal menyimpan karena error unggah foto.")
+    elif selected_nopol:
+        st.error("❌ Kendaraan tidak ditemukan di Database.")
 
 if not df.empty:
     if menu_pilihan == "📊 SEMUA WIP": 
