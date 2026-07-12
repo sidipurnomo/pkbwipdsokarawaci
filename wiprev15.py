@@ -17,8 +17,8 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 # Konfigurasi Notifikasi Otomatis (Ganti dengan data milikmu)
 SENDER_EMAIL = "emailkamu@gmail.com"
 SENDER_APP_PASSWORD = "password_aplikasi_gmail_kamu" # Gunakan App Password, bukan password biasa
-WA_API_URL = "https://api.fonnte.com/send" # Contoh menggunakan Fonnte
-WA_API_TOKEN = "token_api_wa_kamu"
+WA_API_URL = "https://gate.whapi.cloud/" # Contoh menggunakan Fonnte
+WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # ==========================================
 # 🌟 LINK LOGO SUPER JERNIH (VECTOR/PNG)
