@@ -24,7 +24,7 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
-# Konfigurasi Notifikasi WhatsApp (API Starsender)
+# Konfigurasi Notifikasi WhatsApp (API Starsender V3)
 WA_API_URL = "https://api.starsender.online/api" 
 WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
 
@@ -192,8 +192,6 @@ def hitung_progress(kategori, status):
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
-        
-        # PERBAIKAN ERROR 1: Cek apakah respons sukses, bila tidak tampilkan error jelas.
         if response.status_code != 200:
             st.error(f"Gagal koneksi ke Cloud. HTTP Code: {response.status_code}")
             return pd.DataFrame()
@@ -201,7 +199,6 @@ def load_data():
         try:
             data = response.json()
         except ValueError:
-            # Jika gagal parse JSON, tampilkan isi respons untuk debugging
             st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON. "
                      "Pastikan Apps Script telah di-deploy dengan akses 'Anyone'.")
             st.error(f"Respons server: {response.text[:200]}")
@@ -315,7 +312,6 @@ def compress_image(img_file, max_dimension=1600, max_size_kb=1024):
         img = Image.open(img_file)
         if img.mode in ("RGBA", "P", "LA"):
             img = img.convert("RGB")
-
         try:
             resample = Image.Resampling.LANCZOS
         except AttributeError:
@@ -365,7 +361,7 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA STARSENDER (BUG FIXED)
+# 🚀 PENGIRIMAN WA STARSENDER (API V3 FIXED)
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
@@ -391,42 +387,46 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
+    # 🌟 Format Header Baru Untuk Starsender V3
     headers = {
         'Authorization': WA_API_TOKEN,
-        'apikey': WA_API_TOKEN,
         'Content-Type': 'application/json'
     }
     
+    # Endpoint Sentral API V3
+    endpoint_url = f"{WA_API_URL.rstrip('/')}/send"
+
     try:
         for number in target_wa:
             if not number.strip(): continue
             formatted_number = number.strip()
             
             if list_foto_urls:
+                # 📸 Kirim Image + Caption (menggunakan messageType: media)
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
                     payload = {
-                        "tujuan": formatted_number,
-                        "pesan": caption,
-                        "url": url.strip()
+                        "messageType": "media",
+                        "to": formatted_number,
+                        "body": caption,
+                        "file": url.strip()
                     }
                     
-                    # PERBAIKAN ERROR 2: Ubah /sendMedia menjadi endpoint yang didukung API Starsender (umumnya /sendImage atau /sendFiles)
-                    # Saya menggunakan /sendImage sebagai endpoint standar yang valid pada Starsender saat ini
-                    res = requests.post(f"{WA_API_URL.rstrip('/')}/sendImage", headers=headers, json=payload, timeout=10)
-                    
+                    res = requests.post(endpoint_url, headers=headers, json=payload, timeout=10)
                     if str(res.status_code) not in ["200", "201"]:
                         wa_error_messages.append(f"Gagal kirim gambar ke {formatted_number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
             else:
+                # 💬 Kirim Text Only (menggunakan messageType: text)
                 payload = {
-                    "tujuan": formatted_number,
-                    "pesan": pesan_wa
+                    "messageType": "text",
+                    "to": formatted_number,
+                    "body": pesan_wa
                 }
                 
-                res = requests.post(f"{WA_API_URL.rstrip('/')}/sendText", headers=headers, json=payload, timeout=10)
+                res = requests.post(endpoint_url, headers=headers, json=payload, timeout=10)
                 if str(res.status_code) not in ["200", "201"]:
                     wa_error_messages.append(f"Gagal kirim teks ke {formatted_number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
