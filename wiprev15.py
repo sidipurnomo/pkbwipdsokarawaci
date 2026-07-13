@@ -26,7 +26,7 @@ SENDER_APP_PASSWORD = "apabae"
 
 # Konfigurasi Notifikasi WhatsApp (API Starsender)
 WA_API_URL = "https://api.starsender.online/api" 
-WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
+WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 # Pastikan ejaan nama sesuai dengan yang ada di Google Sheets (huruf besar/kecil otomatis disesuaikan)
