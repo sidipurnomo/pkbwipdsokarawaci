@@ -26,7 +26,7 @@ SENDER_APP_PASSWORD = "apabae"
 
 # Konfigurasi Notifikasi WhatsApp (FONNTE API)
 # ❗ WAJIB DIISI: Dapatkan Token Fonnte Anda dari menu 'Device' di dashboard Fonnte
-FONNTE_API_TOKEN = "MASUKKAN_TOKEN_FONNTE_ANDA_DISINI"
+FONNTE_API_TOKEN = "g5DFY9dwpGU7ygjuHkQC"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 WA_SA_MAP = {
