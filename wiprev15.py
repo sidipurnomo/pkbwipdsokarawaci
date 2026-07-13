@@ -24,9 +24,11 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
-# Konfigurasi Notifikasi WhatsApp (API Starsender V3)
-WA_API_URL = "https://7107.api.greenapi.com" 
-WA_API_TOKEN = "1adfea21b7d0429aa3fb6b88463955fbc5ccde8b52234b0792"
+# Konfigurasi Notifikasi WhatsApp (GREEN API)
+# ❗ WAJIB DIISI: Dapatkan ID Instance dari dashboard Green API Anda
+GREEN_API_HOST = "https://7107.api.greenapi.com" 
+GREEN_API_ID_INSTANCE = "710722681804" 
+GREEN_API_TOKEN = "1adfea21b7d0429aa3fb6b88463955fbc5ccde8b52234b0792"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 WA_SA_MAP = {
@@ -361,12 +363,13 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA STARSENDER (API V3 FIXED)
+# 🚀 PENGIRIMAN WA GREEN API
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
     wa_error_messages = [] 
     
+    # 📌 Logika 1: Pisahkan berdasarkan SA & Kecualikan jika "Menunggu Part" (Kirim ke Admin Part)
     if status == "Menunggu Part":
         target_wa.extend(WA_ADMIN_PART)
     else:
@@ -387,52 +390,56 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
-    # 🌟 Format Header Baru Untuk Starsender V3
-    headers = {
-        'Authorization': WA_API_TOKEN,
-        'Content-Type': 'application/json'
-    }
-    
-    # Endpoint Sentral API V3
-    endpoint_url = f"{WA_API_URL.rstrip('/')}/send"
+    # 🌟 Konfigurasi Header dan Endpoint untuk Green API
+    headers = {'Content-Type': 'application/json'}
+    base_url = f"{GREEN_API_HOST.rstrip('/')}/waInstance{GREEN_API_ID_INSTANCE}"
+    url_send_text = f"{base_url}/sendMessage/{GREEN_API_TOKEN}"
+    url_send_file = f"{base_url}/sendFileByUrl/{GREEN_API_TOKEN}"
 
     try:
         for number in target_wa:
             if not number.strip(): continue
-            formatted_number = number.strip()
+            
+            # Green API Mewajibkan format @c.us untuk nomor WhatsApp Personal
+            chat_id = f"{number.strip()}@c.us"
             
             if list_foto_urls:
-                # 📸 Kirim Image + Caption (menggunakan messageType: media)
+                # 📸 Kirim Image Multiple dengan Green API (sendFileByUrl)
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
+                    
+                    # Foto pertama diberi caption pesan utama, foto selanjutnya hanya label
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
                     payload = {
-                        "messageType": "media",
-                        "to": formatted_number,
-                        "body": caption,
-                        "file": url.strip()
+                        "chatId": chat_id,
+                        "urlFile": url.strip(),
+                        "fileName": f"Update_Kendaraan_{i+1}.jpg",
+                        "caption": caption
                     }
                     
-                    res = requests.post(endpoint_url, headers=headers, json=payload, timeout=10)
-                    if str(res.status_code) not in ["200", "201"]:
-                        wa_error_messages.append(f"Gagal kirim gambar ke {formatted_number}. Kode HTTP: {res.status_code}. Info: {res.text}")
+                    res = requests.post(url_send_file, headers=headers, json=payload, timeout=15)
+                    
+                    # Cek jika Green API mengembalikan error
+                    if str(res.status_code) != "200":
+                        wa_error_messages.append(f"Gagal kirim gambar ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
             else:
-                # 💬 Kirim Text Only (menggunakan messageType: text)
+                # 💬 Kirim Text Only (sendMessage)
                 payload = {
-                    "messageType": "text",
-                    "to": formatted_number,
-                    "body": pesan_wa
+                    "chatId": chat_id,
+                    "message": pesan_wa
                 }
                 
-                res = requests.post(endpoint_url, headers=headers, json=payload, timeout=10)
-                if str(res.status_code) not in ["200", "201"]:
-                    wa_error_messages.append(f"Gagal kirim teks ke {formatted_number}. Kode HTTP: {res.status_code}. Info: {res.text}")
+                res = requests.post(url_send_text, headers=headers, json=payload, timeout=10)
+                
+                if str(res.status_code) != "200":
+                    wa_error_messages.append(f"Gagal kirim teks ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
     except Exception as e:
-        wa_error_messages.append(f"Error Koneksi Server WA: {str(e)}")
+        wa_error_messages.append(f"Error Koneksi Server Green API: {str(e)}")
         
+    # --- Blok Email Dibiarkan Sesuai Kode Asli Anda ---
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
@@ -482,7 +489,7 @@ if 'notif_sukses' in st.session_state:
     del st.session_state['notif_sukses']
 
 if 'wa_errors' in st.session_state:
-    st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (STARSENDER):**\n\n" + "\n".join(st.session_state['wa_errors']))
+    st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (GREEN API):**\n\n" + "\n".join(st.session_state['wa_errors']))
     del st.session_state['wa_errors']
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
