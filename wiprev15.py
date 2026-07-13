@@ -192,7 +192,21 @@ def hitung_progress(kategori, status):
 def load_data():
     try:
         response = requests.get(APPS_SCRIPT_URL, timeout=15)
-        data = response.json()
+        
+        # PERBAIKAN ERROR 1: Cek apakah respons sukses, bila tidak tampilkan error jelas.
+        if response.status_code != 200:
+            st.error(f"Gagal koneksi ke Cloud. HTTP Code: {response.status_code}")
+            return pd.DataFrame()
+            
+        try:
+            data = response.json()
+        except ValueError:
+            # Jika gagal parse JSON, tampilkan isi respons untuk debugging
+            st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON. "
+                     "Pastikan Apps Script telah di-deploy dengan akses 'Anyone'.")
+            st.error(f"Respons server: {response.text[:200]}")
+            return pd.DataFrame()
+
         if not data: return pd.DataFrame()
         
         df = pd.DataFrame(data)
@@ -231,8 +245,11 @@ def load_data():
             df['Progress (%)'] = df.apply(lambda row: hitung_progress(row['Kategori'], row['Status Pekerjaan']), axis=1)
 
         return df
+    except requests.exceptions.RequestException as e:
+        st.error(f"Gagal koneksi internet ke database Cloud: {e}")
+        return pd.DataFrame()
     except Exception as e:
-        st.error(f"Gagal koneksi ke database Cloud: {e}")
+        st.error(f"Terjadi kesalahan saat memproses data Cloud: {e}")
         return pd.DataFrame()
 
 def get_merged_data():
@@ -352,9 +369,8 @@ def upload_foto_cloud(img_file):
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
-    wa_error_messages = [] # Kumpulkan error di sini
+    wa_error_messages = [] 
     
-    # 1. Routing penerima pesan
     if status == "Menunggu Part":
         target_wa.extend(WA_ADMIN_PART)
     else:
@@ -369,15 +385,12 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
                 
     target_wa = list(set(target_wa))
     
-    # Cegah jalan jika tidak ada nomor target sama sekali
     if not target_wa:
         wa_error_messages.append(f"Tidak ada nomor WA tujuan untuk SA '{nama_sa}' dan bukan fallback (Kategori: {kategori}).")
         return wa_error_messages
     
-    # --- KIRIM WHATSAPP MULTIPLE FOTO (STARSENDER) ---
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
-    # Header Standar Starsender API (Double Token Type for Compatibility)
     headers = {
         'Authorization': WA_API_TOKEN,
         'apikey': WA_API_TOKEN,
@@ -390,7 +403,6 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
             formatted_number = number.strip()
             
             if list_foto_urls:
-                # 📸 Kirim Image + Caption
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
@@ -401,12 +413,14 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
                         "url": url.strip()
                     }
                     
-                    res = requests.post(f"{WA_API_URL.rstrip('/')}/sendMedia", headers=headers, json=payload, timeout=10)
+                    # PERBAIKAN ERROR 2: Ubah /sendMedia menjadi endpoint yang didukung API Starsender (umumnya /sendImage atau /sendFiles)
+                    # Saya menggunakan /sendImage sebagai endpoint standar yang valid pada Starsender saat ini
+                    res = requests.post(f"{WA_API_URL.rstrip('/')}/sendImage", headers=headers, json=payload, timeout=10)
+                    
                     if str(res.status_code) not in ["200", "201"]:
                         wa_error_messages.append(f"Gagal kirim gambar ke {formatted_number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
             else:
-                # 💬 Kirim Text Only
                 payload = {
                     "tujuan": formatted_number,
                     "pesan": pesan_wa
@@ -419,7 +433,6 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     except Exception as e:
         wa_error_messages.append(f"Error Koneksi Server WA: {str(e)}")
         
-    # --- KIRIM EMAIL ---
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
@@ -440,7 +453,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     except Exception as e:
         print(f"Gagal mengirim email background: {e}")
         
-    return wa_error_messages # Kembalikan daftar error untuk dimunculkan di Session State
+    return wa_error_messages 
 
 # ==========================================
 # 📊 DASHBOARD & APP LOGIC
@@ -464,7 +477,6 @@ def style_umur_pkb(val):
     except: pass
     return ''
 
-# 👇 NOTIFIKASI ERROR/SUKSES DITAMPILKAN DI SINI AGAR TIDAK HILANG SAAT RERUN
 if 'notif_sukses' in st.session_state:
     st.success(st.session_state['notif_sukses'])
     del st.session_state['notif_sukses']
@@ -583,7 +595,6 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                         if sukses:
                             foto_terkirim_urls = link_fotos if link_fotos else ([f.strip() for f in foto_saat_ini.split(',') if f.strip().startswith("http")] if foto_saat_ini != "-" else [])
                             
-                            # 👇 TANGKAP ERROR WA DAN SIMPAN KE SESSION STATE
                             wa_errors = send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, nama_sa, foto_terkirim_urls)
                             target_notif = "Admin Part" if new_status == "Menunggu Part" else f"SA {nama_sa}"
                             
@@ -593,7 +604,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                             else:
                                 st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis ke {target_notif}."
                             
-                            st.rerun() # Refresh layar
+                            st.rerun() 
                     else:
                         st.error("🛑 Gagal menyimpan karena ada error saat unggah foto.")
     elif selected_nopol:
