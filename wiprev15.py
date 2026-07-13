@@ -24,13 +24,24 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
-# Konfigurasi Notifikasi WhatsApp (API Fonnte / Whapi)
-WA_API_URL = "https://gate.whapi.cloud/" 
-WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
+# Konfigurasi Notifikasi WhatsApp (API Starsender)
+WA_API_URL = "https://api.starsender.online/api/send/" 
+WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
 
-# --- DAFTAR NOMOR TARGET WHATSAPP ---
-WA_SA_BR = ["6281287200880", "6287774134574"] 
-WA_SA_GR = ["6281366664391", "6283893470438", "628558825962"] 
+# --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
+# [PENTING] Silakan isi dan sesuaikan NAMA SA beserta Nomor WA-nya di sini.
+# Pastikan ejaan nama sesuai dengan yang ada di Google Sheets (huruf besar/kecil otomatis disesuaikan)
+WA_SA_MAP = {
+    "NAMA SA 1": "6281287200880",  
+    "NAMA SA 2": "6287774134574",
+    "NAMA SA 3": "6281366664391",
+    "NAMA SA 4": "6283893470438",
+    "NAMA SA 5": "628558825962",
+}
+
+# Daftar Backup jika nama SA tidak ditemukan & Admin Part
+WA_SA_BR_FALLBACK = ["6281287200880", "6287774134574"] 
+WA_SA_GR_FALLBACK = ["6281366664391", "6283893470438", "628558825962"] 
 WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
 
 # ==========================================
@@ -189,7 +200,6 @@ def load_data():
         
         df = pd.DataFrame(data)
         
-        # Deduplikasi: ambil data paling terbaru berdasarkan No PKB
         if 'No PKB' in df.columns and 'No Polisi' in df.columns:
             df['Identifier'] = df.apply(lambda x: str(x['No PKB']).strip() if str(x.get('No PKB', '')).strip() not in ['', '-', 'BELUM ADA', 'nan'] else str(x.get('No Polisi', '')).strip(), axis=1)
             df = df.drop_duplicates(subset=['Identifier'], keep='last').drop(columns=['Identifier']).reset_index(drop=True)
@@ -233,7 +243,6 @@ def get_merged_data():
     if 'df_data' in st.session_state and st.session_state['df_data'] is not None:
         old_df = st.session_state['df_data']
         if not new_df.empty and not old_df.empty and 'No Polisi' in old_df.columns:
-            # 1. Sesuaikan status terbaru jika database ditimpa
             old_status_map = dict(zip(old_df['No Polisi'], old_df['Status Pekerjaan'])) if 'Status Pekerjaan' in old_df.columns else {}
             old_ket_map = dict(zip(old_df['No Polisi'], old_df['Keterangan Lanjutan'])) if 'Keterangan Lanjutan' in old_df.columns else {}
             old_foto_map = dict(zip(old_df['No Polisi'], old_df['Foto PKB'])) if 'Foto PKB' in old_df.columns else {}
@@ -245,12 +254,10 @@ def get_merged_data():
             if 'Foto PKB' in new_df.columns:
                 new_df['Foto PKB'] = new_df.apply(lambda row: old_foto_map.get(row['No Polisi'], row['Foto PKB']), axis=1)
             
-            # 2. Tangani data lama yang HILANG di data baru (karena ditimpa / terhapus)
             new_nopol_list = new_df['No Polisi'].tolist()
             missing_df = old_df[~old_df['No Polisi'].isin(new_nopol_list)].copy()
             
             if not missing_df.empty:
-                # Pindahkan secara otomatis ke Selesai
                 missing_df['Status Pekerjaan'] = 'Selesai'
                 if 'Keterangan Lanjutan' in missing_df.columns:
                     missing_df['Keterangan Lanjutan'] = missing_df['Keterangan Lanjutan'].astype(str) + " [Auto-Selesai: Database ditimpa]"
@@ -258,11 +265,8 @@ def get_merged_data():
                     missing_df['Keterangan Lanjutan'] = "[Auto-Selesai: Database ditimpa]"
                 
                 missing_df['Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                # Gabungkan kembali
                 new_df = pd.concat([new_df, missing_df], ignore_index=True)
                 
-                # Sinkronisasi ke belakang secara senyap agar Cloud update data yang 'Auto-Selesai'
                 try:
                     df_to_save = new_df.drop(columns=['Umur PKB (Hari)', 'Progress (%)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
                     df_to_save = df_to_save.fillna("-").astype(str)
@@ -346,36 +350,48 @@ def upload_foto_cloud(img_file):
         st.error(f"❌ ImgBB Menolak Upload (Status {res.status_code}): {err_msg}")
         return None
 
-def send_auto_email_wa(nopol, status, catatan, kategori, foto_url="-"):
-    # 1. Tentukan Nomor Target WA berdasarkan Kategori
+# Fungsi pengiriman pesan WA + Foto (Support Multiple URL)
+def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
-    if kategori == "Body Repair":
-        target_wa.extend(WA_SA_BR)
-    elif kategori == "General Repair":
-        target_wa.extend(WA_SA_GR)
     
-    # 2. Jika status Menunggu Part, tambahkan Admin Part
+    # 1. Aturan Pengecualian: Jika Menunggu Part HANYA terkirim ke Admin Part
     if status == "Menunggu Part":
         target_wa.extend(WA_ADMIN_PART)
-        
-    # Hapus duplikat nomor jika ada nomor ganda
+    else:
+        # 2. Pisahkan pengiriman otomatis berdasarkan Nama SA
+        sa_upper = str(nama_sa).strip().upper()
+        # Jika nama SA ditemukan di Map, kirim ke nomor tersebut
+        if sa_upper in WA_SA_MAP:
+            target_wa.append(WA_SA_MAP[sa_upper])
+        else:
+            # Fallback jika nama SA tidak ada di map
+            if kategori == "Body Repair":
+                target_wa.extend(WA_SA_BR_FALLBACK)
+            elif kategori == "General Repair":
+                target_wa.extend(WA_SA_GR_FALLBACK)
+                
+    # Hapus duplikat nomor WA
     target_wa = list(set(target_wa))
     
-    # --- KIRIM WHATSAPP ---
+    # --- KIRIM WHATSAPP MULTIPLE FOTO ---
     try:
-        pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
-        if foto_url and foto_url != "-" and foto_url.startswith("http"):
-            pesan_wa += f"\n📸 *Foto Kondisi:* {foto_url}"
-        
+        pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
         headers = {'Authorization': f"Bearer {WA_API_TOKEN}", 'Content-Type': 'application/json'}
+        
         for number in target_wa:
-            if number.strip():
-                if foto_url and foto_url != "-" and foto_url.startswith("http"):
-                    payload = {"to": number.strip(), "media": foto_url, "caption": pesan_wa}
+            if not number.strip(): continue
+            
+            if list_foto_urls:
+                # Foto pertama sekaligus kirim caption komplit
+                for i, url in enumerate(list_foto_urls):
+                    if not url.startswith("http"): continue
+                    caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
+                    payload = {"to": number.strip(), "media": url.strip(), "caption": caption}
                     requests.post(f"{WA_API_URL.rstrip('/')}/messages/image", headers=headers, json=payload, timeout=5)
-                else:
-                    payload = {"to": number.strip(), "body": pesan_wa}
-                    requests.post(f"{WA_API_URL.rstrip('/')}/messages/text", headers=headers, json=payload, timeout=5)
+            else:
+                # Jika tidak ada foto sama sekali, kirim pesan text murni
+                payload = {"to": number.strip(), "body": pesan_wa}
+                requests.post(f"{WA_API_URL.rstrip('/')}/messages/text", headers=headers, json=payload, timeout=5)
     except Exception as e:
         print(f"Gagal mengirim WA background: {e}")
 
@@ -386,14 +402,13 @@ def send_auto_email_wa(nopol, status, catatan, kategori, foto_url="-"):
         msg['To'] = "deny.hermawan@dso.astra.co.id, hendri.yogasaputra@dso.astra.co.id"
         msg['Subject'] = f"Update Status ({kategori}) - No Polisi: {nopol} [{status}]"
         
-        body = f"Terdapat update pada kendaraan No Polisi: {nopol}\nKategori Pekerjaan: {kategori}\nStatus Terkini: {status}\nCatatan: {catatan}\n"
-        if foto_url and foto_url != "-" and foto_url.startswith("http"):
-            body += f"Foto Terkini: {foto_url}\n"
-        body += "\nSalam, Admin Service DSO Karawaci."
+        body = f"Terdapat update pada kendaraan No Polisi: {nopol}\nNama SA: {nama_sa}\nKategori Pekerjaan: {kategori}\nStatus Terkini: {status}\nCatatan: {catatan}\n"
+        if list_foto_urls:
+            body += "\nLink Foto Terkini:\n" + "\n".join(list_foto_urls)
+        body += "\n\nSalam, Admin Service DSO Karawaci."
         
         msg.attach(MIMEText(body, 'plain'))
-        
-        # Uncomment untuk mengaktifkan pengiriman SMTP
+        # Uncomment untuk mengaktifkan SMTP email
         # server = smtplib.SMTP('smtp.gmail.com', 587)
         # server.starttls()
         # server.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
@@ -430,7 +445,6 @@ if 'notif_sukses' in st.session_state:
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
 
-# FITUR: Pemisahan Data WIP dan Selesai Secara Ketat
 df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
 df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame()
 
@@ -450,7 +464,6 @@ def render_update_form(kategori_filter):
     st.markdown(f"#### 🔎 Pencarian Kendaraan WIP ({kategori_filter})")
     if df_wip.empty: return st.warning("Tidak ada data WIP saat ini.")
     
-    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai"
     df_kategori = df_wip[df_wip['Kategori'] == kategori_filter]
     list_nopol = df_kategori['No Polisi'].dropna().unique().tolist()
     
@@ -466,7 +479,6 @@ def render_mobile_form():
     st.markdown("#### 📱 Menu Update Mobile (WIP)")
     if df_wip.empty: return st.warning("Tidak ada data WIP saat ini.")
     
-    # Hanya menampilkan kendaraan yang statusnya bukan "Selesai"
     list_nopol = df_wip['No Polisi'].dropna().unique().tolist()
     
     tab1, tab2 = st.tabs(["📝 Pilih dari List", "⌨️ Cari Manual"])
@@ -480,8 +492,9 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
     if selected_nopol and selected_nopol in df['No Polisi'].values:
         data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1] 
         kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
+        nama_sa = str(data_kendaraan.get('Nama SA', '-'))
         
-        st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
+        st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | SA: {nama_sa} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
         
         with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
             st.markdown("**📌 Status & Keterangan**")
@@ -498,25 +511,40 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             
             st.markdown("**📸 Foto Kondisi Kendaraan**")
             foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
-            if foto_saat_ini.startswith("http"): 
-                st.image(foto_saat_ini, caption="Foto Terakhir")
             
-            uploaded_foto = st.file_uploader("Upload Foto Baru (Simpan ke Cloud)", type=['jpg', 'jpeg', 'png'], key=f"upload_{selected_nopol}")
+            # Tampilkan multiple foto yang lama jika ada (dipisah koma)
+            if foto_saat_ini != "-":
+                list_foto_lama = [f.strip() for f in foto_saat_ini.split(',') if f.strip().startswith("http")]
+                if list_foto_lama:
+                    cols = st.columns(min(len(list_foto_lama), 4))
+                    for i, f_url in enumerate(list_foto_lama):
+                        cols[i % 4].image(f_url, caption=f"Foto Terakhir {i+1}")
+            
+            # Mendukung multiple upload file sekarang
+            uploaded_fotos = st.file_uploader("Upload Foto Baru (Bisa Lebih Dari Satu)", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True, key=f"upload_{selected_nopol}")
 
             if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
-                if kategori_asli == "Body Repair" and uploaded_foto is None:
-                    st.error("🛑 GAGAL UPDATE: Kategori Body Repair DIWAJIBKAN mengunggah foto kondisi kendaraan saat update status!")
+                if kategori_asli == "Body Repair" and not uploaded_fotos and new_status != curr_status:
+                    st.error("🛑 GAGAL UPDATE: Kategori Body Repair DIWAJIBKAN mengunggah foto saat update status!")
                 else:
                     upload_sukses = True
-                    link_foto = None
+                    link_fotos = []
                     
-                    if uploaded_foto is not None:
+                    if uploaded_fotos:
                         with st.spinner("Mengupload foto..."):
-                            link_foto = upload_foto_cloud(uploaded_foto)
-                            if link_foto: df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = link_foto
-                            else: upload_sukses = False 
+                            for foto in uploaded_fotos:
+                                link = upload_foto_cloud(foto)
+                                if link:
+                                    link_fotos.append(link)
+                                else:
+                                    upload_sukses = False
+                                    break
                     
                     if upload_sukses:
+                        # Jika ada foto baru, simpan ke database pisahkan koma
+                        if link_fotos:
+                            df.loc[df['No Polisi'] == selected_nopol, 'Foto PKB'] = ", ".join(link_fotos)
+                            
                         df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
                         df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
                         df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -524,13 +552,17 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                         st.session_state['df_data'] = df
                         with st.spinner("Menyinkronkan ke Cloud..."):
                             sukses = save_data(df)
+                            
                         if sukses:
-                            foto_terkirim = link_foto if link_foto else foto_saat_ini
-                            send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, foto_terkirim)
-                            st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis ke tim {kategori_asli}."
+                            # Tentukan List URL untuk dikirim via WA
+                            foto_terkirim_urls = link_fotos if link_fotos else ([f.strip() for f in foto_saat_ini.split(',') if f.strip().startswith("http")] if foto_saat_ini != "-" else [])
+                            
+                            send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, nama_sa, foto_terkirim_urls)
+                            target_notif = "Admin Part" if new_status == "Menunggu Part" else f"SA {nama_sa}"
+                            st.session_state['notif_sukses'] = f"✅ Data {selected_nopol} berhasil diperbarui! Email/WA terkirim otomatis ke {target_notif}."
                             st.rerun()
                     else:
-                        st.error("🛑 Gagal menyimpan karena error unggah foto.")
+                        st.error("🛑 Gagal menyimpan karena ada error saat unggah foto.")
     elif selected_nopol:
         st.error("❌ Kendaraan tidak ditemukan di Database.")
 
@@ -581,24 +613,29 @@ if not df.empty:
                 nopol_baru = st.text_input("No Polisi *").strip().upper()
                 tipe_baru = st.text_input("Tipe Kendaraan *").strip()
                 kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
+                nama_sa_baru = st.text_input("Nama SA *").strip()
             with c2:
                 warna_baru = st.text_input("Warna Kendaraan").strip()
-                foto_baru = st.file_uploader("Upload Foto Kendaraan", type=['jpg', 'jpeg', 'png'])
+                foto_barus = st.file_uploader("Upload Foto Kendaraan (Bisa Multiple)", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
             
             st.markdown("*Wajib diisi")
             
             if st.form_submit_button("💾 SIMPAN DATA KENDARAAN", width="stretch"):
-                if not nopol_baru or not tipe_baru:
-                    st.error("⚠️ No Polisi dan Tipe Kendaraan wajib diisi!")
+                if not nopol_baru or not tipe_baru or not nama_sa_baru:
+                    st.error("⚠️ No Polisi, Tipe Kendaraan, dan Nama SA wajib diisi!")
                 else:
-                    link_foto = "-"
+                    link_fotos = []
                     upload_sukses = True
                     
-                    if foto_baru is not None:
+                    if foto_barus:
                         with st.spinner("Mengupload foto..."):
-                            link = upload_foto_cloud(foto_baru)
-                            if link: link_foto = link
-                            else: upload_sukses = False
+                            for foto in foto_barus:
+                                link = upload_foto_cloud(foto)
+                                if link: 
+                                    link_fotos.append(link)
+                                else: 
+                                    upload_sukses = False
+                                    break
                     
                     if upload_sukses:
                         new_data = {col: "-" for col in df.columns}
@@ -611,8 +648,9 @@ if not df.empty:
                         new_data['Tgl PKB'] = datetime.now().strftime("%Y-%m-%d")
                         new_data['Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         new_data['Nama Customer'] = "TAMU / NON-PKB"
+                        new_data['Nama SA'] = nama_sa_baru.upper()
                         new_data['No PKB'] = "BELUM ADA"
-                        new_data['Foto PKB'] = link_foto
+                        new_data['Foto PKB'] = ", ".join(link_fotos) if link_fotos else "-"
                         
                         df_new_row = pd.DataFrame([new_data])
                         df_updated = pd.concat([df, df_new_row], ignore_index=True)
@@ -625,6 +663,6 @@ if not df.empty:
                             st.session_state['notif_sukses'] = f"✅ Kendaraan Tamu {nopol_baru} berhasil didaftarkan!"
                             st.rerun()
                     else:
-                        st.error("🛑 Gagal menyimpan karena error unggah foto.")
+                        st.error("🛑 Gagal menyimpan karena ada error saat unggah foto.")
 else:
     st.info("Loading data atau database masih kosong.")
