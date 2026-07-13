@@ -26,11 +26,11 @@ SENDER_APP_PASSWORD = "apabae"
 
 # Konfigurasi Notifikasi WhatsApp (FONNTE API)
 # ❗ WAJIB DIISI: Dapatkan Token Fonnte Anda dari menu 'Device' di dashboard Fonnte
-FONNTE_API_TOKEN = "g5DFY9dwpGU7ygjuHkQC"
+FONNTE_API_TOKEN = "MASUKKAN_TOKEN_FONNTE_ANDA_DISINI"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 WA_SA_MAP = {
-    "SAHRIM022761": "6287774134574",
+    "SAHRIM022761": "6281287200880",
     "MAULAN030509": "6281366664391",
     "BERLIA039884": "6283893470438",
     "MUHAMM086163": "628558825962",
@@ -361,7 +361,7 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA FONNTE API
+# 🚀 PENGIRIMAN WA FONNTE API (UPDATED JSON)
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
@@ -388,35 +388,36 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
-    # 🌟 Konfigurasi Header dan Endpoint untuk Fonnte API
-    headers = {'Authorization': FONNTE_API_TOKEN}
+    # 🌟 Konfigurasi Header JSON untuk Fonnte API
+    headers = {
+        'Authorization': FONNTE_API_TOKEN,
+        'Content-Type': 'application/json'  # PENAMBAHAN HEADER INI WAJIB UNTUK MENCEGAH URL ENCODED
+    }
     url_fonnte = "https://api.fonnte.com/send"
 
     try:
         for number in target_wa:
             if not number.strip(): continue
             
-            # Fonnte menggunakan nomor WA normal (tanpa @c.us)
             target_number = number.strip()
             
             if list_foto_urls:
-                # 📸 Kirim Image Multiple dengan Fonnte
+                # 📸 Kirim Image Multiple dengan Fonnte (Menggunakan JSON)
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     
-                    # Foto pertama diberi caption pesan utama, foto selanjutnya hanya label
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
                     payload = {
                         "target": target_number,
                         "message": caption,
-                        "url": url.strip()
+                        "url": url.strip(),
+                        "file": url.strip()  # Backup Trigger: Memastikan API Fonnte membaca link file
                     }
                     
-                    # Mengirim data menggunakan data form-data sesuai standar Fonnte
-                    res = requests.post(url_fonnte, headers=headers, data=payload, timeout=15)
+                    # 💡 PERUBAHAN PENTING: Mengubah data=payload menjadi json=payload
+                    res = requests.post(url_fonnte, headers=headers, json=payload, timeout=15)
                     
-                    # Mengecek response JSON Fonnte yang sukses mengembalikan "status": true
                     try:
                         res_data = res.json()
                         if not res_data.get('status'):
@@ -425,15 +426,16 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
                         if res.status_code != 200:
                             wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. Kode HTTP: {res.status_code}")
                     
-                    time.sleep(1) # Memberikan jeda aman agar Fonnte tidak mendeteksi spam/rate limit
+                    time.sleep(1) # Memberikan jeda agar Fonnte tidak mendeteksi spam
             else:
-                # 💬 Kirim Text Only
+                # 💬 Kirim Text Only (Menggunakan JSON)
                 payload = {
                     "target": target_number,
                     "message": pesan_wa
                 }
                 
-                res = requests.post(url_fonnte, headers=headers, data=payload, timeout=10)
+                # 💡 PERUBAHAN PENTING: Mengubah data=payload menjadi json=payload
+                res = requests.post(url_fonnte, headers=headers, json=payload, timeout=10)
                 
                 try:
                     res_data = res.json()
@@ -446,7 +448,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     except Exception as e:
         wa_error_messages.append(f"Error Koneksi Server Fonnte: {str(e)}")
         
-    # --- Blok Email Dibiarkan Sesuai Kode Asli Anda ---
+    # --- Blok Email Dibiarkan Sesuai Kode Asli ---
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
