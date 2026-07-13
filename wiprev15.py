@@ -361,7 +361,7 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA FLOWKIRIM API (UPDATED JSON)
+# 🚀 PENGIRIMAN WA FLOWKIRIM API (FIXED ROUTE)
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
@@ -390,64 +390,67 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     
     # 🌟 Konfigurasi Header JSON untuk FlowKirim API
     headers = {
-        'Authorization': FLOWKIRIM_API_TOKEN, # Menggunakan API Token FlowKirim yang sudah ditentukan
+        'Authorization': FLOWKIRIM_API_TOKEN, 
         'Content-Type': 'application/json'  
     }
     
-    # Menyesuaikan URL API endpoint FlowKirim standar umumnya API WAG adalah /api/send atau /send
-    url_flowkirim = f"{API_URL_FLOWKIRIM.rstrip('/')}/api/send"
-
     try:
         for number in target_wa:
             if not number.strip(): continue
-            
             target_number = number.strip()
             
             if list_foto_urls:
-                # 📸 Kirim Image Multiple dengan FlowKirim
+                # 📸 Kirim Image Multiple dengan FlowKirim (Rute yang tepat biasanya /send-media)
+                url_flowkirim_media = f"{API_URL_FLOWKIRIM.rstrip('/')}/send-media"
+                
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
-                    # Memasang payload multi-parameter agar kompatibel dengan standar WAG API apapun (baik parameter "to" maupun "target")
+                    # Memasang payload universal untuk mencegah error pembacaan variabel API
                     payload = {
+                        "number": target_number,
                         "to": target_number,
                         "target": target_number,
                         "message": caption,
                         "url": url.strip(),
                         "file": url.strip(),
-                        "type": "image" 
+                        "type": "image",
+                        "media_type": "image"
                     }
                     
-                    res = requests.post(url_flowkirim, headers=headers, json=payload, timeout=15)
+                    res = requests.post(url_flowkirim_media, headers=headers, json=payload, timeout=15)
                     
                     try:
                         res_data = res.json()
                         status_ok = str(res_data.get('status', '')).lower() == 'true' or str(res_data.get('success', '')).lower() == 'true'
                         if not status_ok:
-                            wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. FlowKirim Info: {res_data.get('reason', res.text)}")
+                            wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. FlowKirim Info: {res_data.get('message', res_data.get('reason', res.text))}")
                     except:
                         if res.status_code != 200:
                             wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. Kode HTTP: {res.status_code}")
                     
                     time.sleep(1) # Memberikan jeda agar API tidak mendeteksi spam
             else:
-                # 💬 Kirim Text Only
+                # 💬 Kirim Text Only (Rute yang tepat biasanya /send-message)
+                url_flowkirim_text = f"{API_URL_FLOWKIRIM.rstrip('/')}/send-message"
+                
                 payload = {
+                    "number": target_number,
                     "to": target_number,
                     "target": target_number,
                     "message": pesan_wa,
                     "type": "text"
                 }
                 
-                res = requests.post(url_flowkirim, headers=headers, json=payload, timeout=10)
+                res = requests.post(url_flowkirim_text, headers=headers, json=payload, timeout=10)
                 
                 try:
                     res_data = res.json()
                     status_ok = str(res_data.get('status', '')).lower() == 'true' or str(res_data.get('success', '')).lower() == 'true'
                     if not status_ok:
-                        wa_error_messages.append(f"Gagal kirim teks ke {target_number}. FlowKirim Info: {res_data.get('reason', res.text)}")
+                        wa_error_messages.append(f"Gagal kirim teks ke {target_number}. FlowKirim Info: {res_data.get('message', res_data.get('reason', res.text))}")
                 except:
                     if res.status_code != 200:
                         wa_error_messages.append(f"Gagal kirim teks ke {target_number}. Kode HTTP: {res.status_code}")
