@@ -25,11 +25,10 @@ SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
 # Konfigurasi Notifikasi WhatsApp (API Starsender)
-WA_API_URL = "https://gate.whapi.cloud/" 
+WA_API_URL = "https://api.starsender.online/api" 
 WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
-# [PENTING] Silakan isi dan sesuaikan NAMA SA beserta Nomor WA-nya di sini.
 # Pastikan ejaan nama sesuai dengan yang ada di Google Sheets (huruf besar/kecil otomatis disesuaikan)
 WA_SA_MAP = {
     "SAHRIM022761": "6281287200880",
@@ -349,7 +348,7 @@ def upload_foto_cloud(img_file):
         st.error(f"❌ ImgBB Menolak Upload (Status {res.status_code}): {err_msg}")
         return None
 
-# Fungsi pengiriman pesan WA + Foto (Support Multiple URL)
+# Fungsi pengiriman pesan WA + Foto (Support Multiple URL via Starsender)
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
     
@@ -372,10 +371,14 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     # Hapus duplikat nomor WA
     target_wa = list(set(target_wa))
     
-    # --- KIRIM WHATSAPP MULTIPLE FOTO ---
+    # --- KIRIM WHATSAPP MULTIPLE FOTO (STARSENDER V3 API) ---
     try:
         pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
-        headers = {'Authorization': f"Bearer {WA_API_TOKEN}", 'Content-Type': 'application/json'}
+        
+        headers = {
+            'Authorization': WA_API_TOKEN,
+            'Content-Type': 'application/json'
+        }
         
         for number in target_wa:
             if not number.strip(): continue
@@ -385,12 +388,22 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
-                    payload = {"to": number.strip(), "media": url.strip(), "caption": caption}
-                    requests.post(f"{WA_API_URL.rstrip('/')}/messages/image", headers=headers, json=payload, timeout=5)
+                    
+                    payload = {
+                        "messageType": "media",
+                        "to": number.strip(),
+                        "body": caption,
+                        "file": url.strip()
+                    }
+                    requests.post(f"{WA_API_URL.rstrip('/')}/send", headers=headers, json=payload, timeout=5)
             else:
                 # Jika tidak ada foto sama sekali, kirim pesan text murni
-                payload = {"to": number.strip(), "body": pesan_wa}
-                requests.post(f"{WA_API_URL.rstrip('/')}/messages/text", headers=headers, json=payload, timeout=5)
+                payload = {
+                    "messageType": "text",
+                    "to": number.strip(),
+                    "body": pesan_wa
+                }
+                requests.post(f"{WA_API_URL.rstrip('/')}/send", headers=headers, json=payload, timeout=5)
     except Exception as e:
         print(f"Gagal mengirim WA background: {e}")
 
