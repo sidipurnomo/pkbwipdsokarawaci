@@ -24,13 +24,15 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
-# Konfigurasi Notifikasi WhatsApp (FLOWKIRIM API)
-API_URL_FLOWKIRIM = "https://scan.flowkirim.com"
-FLOWKIRIM_API_TOKEN = "6945723a2f3ff34569a1c5b963a3f034fab3c9f79bf8fe69aaac9fe25856071a"
+# Konfigurasi Notifikasi WhatsApp (GREEN API)
+# ❗ WAJIB DIISI: Dapatkan ID Instance dari dashboard Green API Anda
+GREEN_API_HOST = "https://7107.api.greenapi.com" 
+GREEN_API_ID_INSTANCE = "710722681804" 
+GREEN_API_TOKEN = "1adfea21b7d0429aa3fb6b88463955fbc5ccde8b52234b0792"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 WA_SA_MAP = {
-    "SAHRIM022761": "6287774134574",
+    "SAHRIM022761": "6281287200880",
     "MAULAN030509": "6281366664391",
     "BERLIA039884": "6283893470438",
     "MUHAMM086163": "628558825962",
@@ -361,7 +363,7 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA FLOWKIRIM API (FIXED ROUTE)
+# 🚀 PENGIRIMAN WA GREEN API
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
@@ -388,77 +390,56 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
-    # 🌟 Konfigurasi Header JSON untuk FlowKirim API
-    headers = {
-        'Authorization': FLOWKIRIM_API_TOKEN, 
-        'Content-Type': 'application/json'  
-    }
-    
+    # 🌟 Konfigurasi Header dan Endpoint untuk Green API
+    headers = {'Content-Type': 'application/json'}
+    base_url = f"{GREEN_API_HOST.rstrip('/')}/waInstance{GREEN_API_ID_INSTANCE}"
+    url_send_text = f"{base_url}/sendMessage/{GREEN_API_TOKEN}"
+    url_send_file = f"{base_url}/sendFileByUrl/{GREEN_API_TOKEN}"
+
     try:
         for number in target_wa:
             if not number.strip(): continue
-            target_number = number.strip()
+            
+            # Green API Mewajibkan format @c.us untuk nomor WhatsApp Personal
+            chat_id = f"{number.strip()}@c.us"
             
             if list_foto_urls:
-                # 📸 Kirim Image Multiple dengan FlowKirim (Rute yang tepat biasanya /send-media)
-                url_flowkirim_media = f"{API_URL_FLOWKIRIM.rstrip('/')}/send-media"
-                
+                # 📸 Kirim Image Multiple dengan Green API (sendFileByUrl)
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     
+                    # Foto pertama diberi caption pesan utama, foto selanjutnya hanya label
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
-                    # Memasang payload universal untuk mencegah error pembacaan variabel API
                     payload = {
-                        "number": target_number,
-                        "to": target_number,
-                        "target": target_number,
-                        "message": caption,
-                        "url": url.strip(),
-                        "file": url.strip(),
-                        "type": "image",
-                        "media_type": "image"
+                        "chatId": chat_id,
+                        "urlFile": url.strip(),
+                        "fileName": f"Update_Kendaraan_{i+1}.jpg",
+                        "caption": caption
                     }
                     
-                    res = requests.post(url_flowkirim_media, headers=headers, json=payload, timeout=15)
+                    res = requests.post(url_send_file, headers=headers, json=payload, timeout=15)
                     
-                    try:
-                        res_data = res.json()
-                        status_ok = str(res_data.get('status', '')).lower() == 'true' or str(res_data.get('success', '')).lower() == 'true'
-                        if not status_ok:
-                            wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. FlowKirim Info: {res_data.get('message', res_data.get('reason', res.text))}")
-                    except:
-                        if res.status_code != 200:
-                            wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. Kode HTTP: {res.status_code}")
-                    
-                    time.sleep(1) # Memberikan jeda agar API tidak mendeteksi spam
+                    # Cek jika Green API mengembalikan error
+                    if str(res.status_code) != "200":
+                        wa_error_messages.append(f"Gagal kirim gambar ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
+
             else:
-                # 💬 Kirim Text Only (Rute yang tepat biasanya /send-message)
-                url_flowkirim_text = f"{API_URL_FLOWKIRIM.rstrip('/')}/send-message"
-                
+                # 💬 Kirim Text Only (sendMessage)
                 payload = {
-                    "number": target_number,
-                    "to": target_number,
-                    "target": target_number,
-                    "message": pesan_wa,
-                    "type": "text"
+                    "chatId": chat_id,
+                    "message": pesan_wa
                 }
                 
-                res = requests.post(url_flowkirim_text, headers=headers, json=payload, timeout=10)
+                res = requests.post(url_send_text, headers=headers, json=payload, timeout=10)
                 
-                try:
-                    res_data = res.json()
-                    status_ok = str(res_data.get('status', '')).lower() == 'true' or str(res_data.get('success', '')).lower() == 'true'
-                    if not status_ok:
-                        wa_error_messages.append(f"Gagal kirim teks ke {target_number}. FlowKirim Info: {res_data.get('message', res_data.get('reason', res.text))}")
-                except:
-                    if res.status_code != 200:
-                        wa_error_messages.append(f"Gagal kirim teks ke {target_number}. Kode HTTP: {res.status_code}")
+                if str(res.status_code) != "200":
+                    wa_error_messages.append(f"Gagal kirim teks ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
     except Exception as e:
-        wa_error_messages.append(f"Error Koneksi Server FlowKirim: {str(e)}")
+        wa_error_messages.append(f"Error Koneksi Server Green API: {str(e)}")
         
-    # --- Blok Email Dibiarkan Sesuai Kode Asli ---
+    # --- Blok Email Dibiarkan Sesuai Kode Asli Anda ---
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
@@ -508,7 +489,7 @@ if 'notif_sukses' in st.session_state:
     del st.session_state['notif_sukses']
 
 if 'wa_errors' in st.session_state:
-    st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (FLOWKIRIM API):**\n\n" + "\n".join(st.session_state['wa_errors']))
+    st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (GREEN API):**\n\n" + "\n".join(st.session_state['wa_errors']))
     del st.session_state['wa_errors']
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
