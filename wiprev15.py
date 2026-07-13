@@ -24,11 +24,9 @@ IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
-# Konfigurasi Notifikasi WhatsApp (GREEN API)
-# ❗ WAJIB DIISI: Dapatkan ID Instance dari dashboard Green API Anda
-GREEN_API_HOST = "https://7107.api.greenapi.com" 
-GREEN_API_ID_INSTANCE = "710722681804" 
-GREEN_API_TOKEN = "1adfea21b7d0429aa3fb6b88463955fbc5ccde8b52234b0792"
+# Konfigurasi Notifikasi WhatsApp (FONNTE API)
+# ❗ WAJIB DIISI: Dapatkan Token Fonnte Anda dari menu 'Device' di dashboard Fonnte
+FONNTE_API_TOKEN = "MASUKKAN_TOKEN_FONNTE_ANDA_DISINI"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 WA_SA_MAP = {
@@ -363,7 +361,7 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA GREEN API
+# 🚀 PENGIRIMAN WA FONNTE API
 # ==========================================
 def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
     target_wa = []
@@ -390,21 +388,19 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
-    # 🌟 Konfigurasi Header dan Endpoint untuk Green API
-    headers = {'Content-Type': 'application/json'}
-    base_url = f"{GREEN_API_HOST.rstrip('/')}/waInstance{GREEN_API_ID_INSTANCE}"
-    url_send_text = f"{base_url}/sendMessage/{GREEN_API_TOKEN}"
-    url_send_file = f"{base_url}/sendFileByUrl/{GREEN_API_TOKEN}"
+    # 🌟 Konfigurasi Header dan Endpoint untuk Fonnte API
+    headers = {'Authorization': FONNTE_API_TOKEN}
+    url_fonnte = "https://api.fonnte.com/send"
 
     try:
         for number in target_wa:
             if not number.strip(): continue
             
-            # Green API Mewajibkan format @c.us untuk nomor WhatsApp Personal
-            chat_id = f"{number.strip()}@c.us"
+            # Fonnte menggunakan nomor WA normal (tanpa @c.us)
+            target_number = number.strip()
             
             if list_foto_urls:
-                # 📸 Kirim Image Multiple dengan Green API (sendFileByUrl)
+                # 📸 Kirim Image Multiple dengan Fonnte
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
                     
@@ -412,32 +408,43 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
                     payload = {
-                        "chatId": chat_id,
-                        "urlFile": url.strip(),
-                        "fileName": f"Update_Kendaraan_{i+1}.jpg",
-                        "caption": caption
+                        "target": target_number,
+                        "message": caption,
+                        "url": url.strip()
                     }
                     
-                    res = requests.post(url_send_file, headers=headers, json=payload, timeout=15)
+                    # Mengirim data menggunakan data form-data sesuai standar Fonnte
+                    res = requests.post(url_fonnte, headers=headers, data=payload, timeout=15)
                     
-                    # Cek jika Green API mengembalikan error
-                    if str(res.status_code) != "200":
-                        wa_error_messages.append(f"Gagal kirim gambar ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
-
+                    # Mengecek response JSON Fonnte yang sukses mengembalikan "status": true
+                    try:
+                        res_data = res.json()
+                        if not res_data.get('status'):
+                            wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. Fonnte Info: {res_data.get('reason', res.text)}")
+                    except:
+                        if res.status_code != 200:
+                            wa_error_messages.append(f"Gagal kirim gambar ke {target_number}. Kode HTTP: {res.status_code}")
+                    
+                    time.sleep(1) # Memberikan jeda aman agar Fonnte tidak mendeteksi spam/rate limit
             else:
-                # 💬 Kirim Text Only (sendMessage)
+                # 💬 Kirim Text Only
                 payload = {
-                    "chatId": chat_id,
+                    "target": target_number,
                     "message": pesan_wa
                 }
                 
-                res = requests.post(url_send_text, headers=headers, json=payload, timeout=10)
+                res = requests.post(url_fonnte, headers=headers, data=payload, timeout=10)
                 
-                if str(res.status_code) != "200":
-                    wa_error_messages.append(f"Gagal kirim teks ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
+                try:
+                    res_data = res.json()
+                    if not res_data.get('status'):
+                        wa_error_messages.append(f"Gagal kirim teks ke {target_number}. Fonnte Info: {res_data.get('reason', res.text)}")
+                except:
+                    if res.status_code != 200:
+                        wa_error_messages.append(f"Gagal kirim teks ke {target_number}. Kode HTTP: {res.status_code}")
 
     except Exception as e:
-        wa_error_messages.append(f"Error Koneksi Server Green API: {str(e)}")
+        wa_error_messages.append(f"Error Koneksi Server Fonnte: {str(e)}")
         
     # --- Blok Email Dibiarkan Sesuai Kode Asli Anda ---
     try:
@@ -489,7 +496,7 @@ if 'notif_sukses' in st.session_state:
     del st.session_state['notif_sukses']
 
 if 'wa_errors' in st.session_state:
-    st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (GREEN API):**\n\n" + "\n".join(st.session_state['wa_errors']))
+    st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (FONNTE API):**\n\n" + "\n".join(st.session_state['wa_errors']))
     del st.session_state['wa_errors']
 
 st.markdown(f"<h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'><img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'> Live Service Dashboard</h3>", unsafe_allow_html=True)
