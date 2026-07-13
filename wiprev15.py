@@ -25,8 +25,8 @@ SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
 # Konfigurasi Notifikasi WhatsApp (API Starsender V3)
-WA_API_URL = "https://api.starsender.online/api" 
-WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
+WA_API_URL = "https://7107.api.greenapi.com" 
+WA_API_TOKEN = "1adfea21b7d0429aa3fb6b88463955fbc5ccde8b52234b0792"
 
 # --- 📌 PETA NOMOR WA BERDASARKAN NAMA SA ---
 WA_SA_MAP = {
