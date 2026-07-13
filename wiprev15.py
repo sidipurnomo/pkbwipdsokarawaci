@@ -21,15 +21,15 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_uF5eFhIEqIpOvFh743
 IMGBB_API_KEY = "569f395028cc808c2a05e9fd24882084"
 
 # Konfigurasi Notifikasi Email
-SENDER_EMAIL = "emailkamu@gmail.com"
-SENDER_APP_PASSWORD = "password_aplikasi_gmail_kamu" 
+SENDER_EMAIL = "akunbodong@gmail.com"
+SENDER_APP_PASSWORD = "apabae" 
 
 # Konfigurasi Notifikasi WhatsApp (API Fonnte / Whapi)
-WA_API_URL = "https://api.starsender.online/api/send/" 
-WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
+WA_API_URL = "https://gate.whapi.cloud/" 
+WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
 
 # --- DAFTAR NOMOR TARGET WHATSAPP ---
-WA_SA_BR = ["6289609541480", "6281399211266", "6287774134574"] 
+WA_SA_BR = ["6281287200880", "6287774134574"] 
 WA_SA_GR = ["6281366664391", "6283893470438", "628558825962"] 
 WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
 
