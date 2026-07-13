@@ -25,11 +25,11 @@ SENDER_EMAIL = "emailkamu@gmail.com"
 SENDER_APP_PASSWORD = "password_aplikasi_gmail_kamu" 
 
 # Konfigurasi Notifikasi WhatsApp (API Fonnte / Whapi)
-WA_API_URL = "https://gate.whapi.cloud/" 
-WA_API_TOKEN = "CIgRwaeFa1cvnYaWH1RtBL6taXQi3vcq"
+WA_API_URL = "https://api.starsender.online/api/send/" 
+WA_API_TOKEN = "8836dedf-d55e-40fe-97fa-5903e6d5ae47"
 
 # --- DAFTAR NOMOR TARGET WHATSAPP ---
-WA_SA_BR = ["6281399211266", "6287774134574"] 
+WA_SA_BR = ["6281399211266", "6287774134574", "6289609541480] 
 WA_SA_GR = ["6281366664391", "6283893470438", "628558825962"] 
 WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
 
