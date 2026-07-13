@@ -32,7 +32,7 @@ WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
 # [PENTING] Silakan isi dan sesuaikan NAMA SA beserta Nomor WA-nya di sini.
 # Pastikan ejaan nama sesuai dengan yang ada di Google Sheets (huruf besar/kecil otomatis disesuaikan)
 WA_SA_MAP = {
-    "SAHRIM022761": ["6281399211266", "6287774134574", "6281287200880"]
+    "SAHRIM022761": ["6281399211266", "6287774134574", "6281287200880"],
     "MAULAN030509": "6281366664391",
     "BERLIA039884": "6283893470438",
     "MUHAMM086163": "628558825962",
