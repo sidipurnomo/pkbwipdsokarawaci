@@ -32,16 +32,15 @@ WA_API_TOKEN = "2a38570f-52d8-49f3-af5f-d5ab08b4af0c"
 # [PENTING] Silakan isi dan sesuaikan NAMA SA beserta Nomor WA-nya di sini.
 # Pastikan ejaan nama sesuai dengan yang ada di Google Sheets (huruf besar/kecil otomatis disesuaikan)
 WA_SA_MAP = {
-    "NAMA SA 1": "6281287200880",  
-    "NAMA SA 2": "6287774134574",
-    "NAMA SA 3": "6281366664391",
-    "NAMA SA 4": "6283893470438",
-    "NAMA SA 5": "628558825962",
+    "SAHRIM022761": ["6281399211266", "6287774134574", "6281287200880"]
+    "MAULAN030509": "6281366664391",
+    "BERLIA039884": "6283893470438",
+    "MUHAMM086163": "628558825962",
 }
 
 # Daftar Backup jika nama SA tidak ditemukan & Admin Part
-WA_SA_BR_FALLBACK = ["6281287200880", "6287774134574"] 
-WA_SA_GR_FALLBACK = ["6281366664391", "6283893470438", "628558825962"] 
+WA_SA_BR_FALLBACK = ["6287774134574"] 
+WA_SA_GR_FALLBACK = ["6287774134574"] 
 WA_ADMIN_PART = ["6289630028860", "6285888874700"] 
 
 # ==========================================
