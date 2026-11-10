@@ -709,11 +709,13 @@ if not df.empty:
             c1, c2 = st.columns(2)
             with c1:
                 nopol_baru = st.text_input("No Polisi *").strip().upper()
+                nama_cust_baru = st.text_input("Nama Customer", value="TAMU / NON-PKB").strip().upper()
                 tipe_baru = st.text_input("Tipe Kendaraan *").strip()
-                kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
-                nama_sa_baru = st.text_input("Nama SA *").strip()
-            with c2:
                 warna_baru = st.text_input("Warna Kendaraan").strip()
+            with c2:
+                nama_sa_baru = st.text_input("Nama SA *").strip().upper()
+                kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
+                catatan_baru = st.text_area("Keterangan Awal / Keluhan").strip()
                 foto_barus = st.file_uploader("Upload Foto Kendaraan (Bisa Multiple)", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
             
             st.markdown("*Wajib diisi")
@@ -745,12 +747,13 @@ if not df.empty:
                         new_data['Status Pekerjaan'] = "Menunggu Pekerjaan" if kategori_baru == "General Repair" else "Antrian Pekerjaan"
                         new_data['Tgl PKB'] = datetime.now().strftime("%Y-%m-%d")
                         new_data['Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        new_data['Nama Customer'] = "TAMU / NON-PKB"
-                        new_data['Nama SA'] = nama_sa_baru.upper()
+                        new_data['Nama Customer'] = nama_cust_baru
+                        new_data['Nama SA'] = nama_sa_baru
                         new_data['No PKB'] = "BELUM ADA"
+                        new_data['Keterangan Lanjutan'] = catatan_baru if catatan_baru else "-"
                         new_data['Foto PKB'] = ", ".join(link_fotos) if link_fotos else "-"
                         
-                        # Reset nilai asuransi pada data tamu
+                        # Setel default kolom asuransi untuk tamu
                         new_data['Status SPK Asuransi'] = "-"
                         new_data['Status Pembayaran OR'] = "-"
                         new_data['Kelengkapan Dokumen Asuransi'] = "-"
@@ -767,5 +770,37 @@ if not df.empty:
                             st.rerun()
                     else:
                         st.error("🛑 Gagal menyimpan karena ada error saat unggah foto.")
-else:
-    st.info("Loading data atau database masih kosong.")
+                        
+        # ==============================================================
+        # 📋 MENAMPILKAN DATA HASIL INPUTAN MANUAL (TAMU) DI BAGIAN BAWAH
+        # ==============================================================
+        st.markdown("---")
+        st.markdown("#### 📋 Riwayat Kendaraan Tamu (Input Manual)")
+        
+        if not df.empty and 'No PKB' in df.columns:
+            # Melakukan filter untuk memunculkan data yang No PKB nya "BELUM ADA" (identitas mobil tamu/manual)
+            df_tamu = df[df['No PKB'] == "BELUM ADA"].copy()
+            
+            if not df_tamu.empty:
+                st.success(f"Ditemukan {len(df_tamu)} kendaraan tamu terdaftar.")
+                
+                # Menyusun ulang urutan kolom yang ditampilkan agar enak dibaca
+                kolom_tampil = [
+                    'No Polisi', 'Nama Customer', 'Tipe Kendaraan', 'Nama SA', 
+                    'Kategori', 'Status Pekerjaan', 'Keterangan Lanjutan', 
+                    'Tgl PKB', 'Tanggal Terakhir Diupdate'
+                ]
+                
+                # Memastikan kolom-kolom di atas tersedia di database agar tidak error
+                kolom_tampil_tersedia = [col for col in kolom_tampil if col in df_tamu.columns]
+                
+                # Menampilkan tabel
+                st.dataframe(
+                    df_tamu[kolom_tampil_tersedia], 
+                    width="stretch", 
+                    hide_index=True
+                )
+            else:
+                st.info("Belum ada kendaraan tamu yang ditambahkan secara manual.")
+        else:
+            st.info("Database masih kosong.")
