@@ -25,7 +25,6 @@ SENDER_EMAIL = "akunbodong@gmail.com"
 SENDER_APP_PASSWORD = "apabae" 
 
 # Konfigurasi Notifikasi WhatsApp (GREEN API)
-# ❗ WAJIB DIISI: Dapatkan ID Instance dari dashboard Green API Anda
 GREEN_API_HOST = "https://7107.api.greenapi.com" 
 GREEN_API_ID_INSTANCE = "710722681804" 
 GREEN_API_TOKEN = "1adfea21b7d0429aa3fb6b88463955fbc5ccde8b52234b0792"
@@ -201,9 +200,7 @@ def load_data():
         try:
             data = response.json()
         except ValueError:
-            st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON. "
-                     "Pastikan Apps Script telah di-deploy dengan akses 'Anyone'.")
-            st.error(f"Respons server: {response.text[:200]}")
+            st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON.")
             return pd.DataFrame()
 
         if not data: return pd.DataFrame()
@@ -216,7 +213,9 @@ def load_data():
         elif 'No Polisi' in df.columns:
             df = df.drop_duplicates(subset=['No Polisi'], keep='last').reset_index(drop=True)
 
-        kolom_wajib = ['Nama SA', 'Tipe Kendaraan', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB']
+        # 🌟 Penambahan Kolom Default Asuransi
+        kolom_wajib = ['Nama SA', 'Tipe Kendaraan', 'Tanggal Terakhir Diupdate', 'Keterangan Lanjutan', 'Foto PKB',
+                       'Status SPK Asuransi', 'Status Pembayaran OR', 'Kelengkapan Dokumen Asuransi']
         for col in kolom_wajib:
             if col not in df.columns: df[col] = "-"
         
@@ -260,12 +259,24 @@ def get_merged_data():
             old_ket_map = dict(zip(old_df['No Polisi'], old_df['Keterangan Lanjutan'])) if 'Keterangan Lanjutan' in old_df.columns else {}
             old_foto_map = dict(zip(old_df['No Polisi'], old_df['Foto PKB'])) if 'Foto PKB' in old_df.columns else {}
             
+            # 🌟 Menyimpan State Asuransi Saat Sinkronisasi
+            old_spk_map = dict(zip(old_df['No Polisi'], old_df['Status SPK Asuransi'])) if 'Status SPK Asuransi' in old_df.columns else {}
+            old_or_map = dict(zip(old_df['No Polisi'], old_df['Status Pembayaran OR'])) if 'Status Pembayaran OR' in old_df.columns else {}
+            old_dok_map = dict(zip(old_df['No Polisi'], old_df['Kelengkapan Dokumen Asuransi'])) if 'Kelengkapan Dokumen Asuransi' in old_df.columns else {}
+
             if 'Status Pekerjaan' in new_df.columns:
                 new_df['Status Pekerjaan'] = new_df.apply(lambda row: old_status_map.get(row['No Polisi'], row['Status Pekerjaan']), axis=1)
             if 'Keterangan Lanjutan' in new_df.columns:
                 new_df['Keterangan Lanjutan'] = new_df.apply(lambda row: old_ket_map.get(row['No Polisi'], row['Keterangan Lanjutan']), axis=1)
             if 'Foto PKB' in new_df.columns:
                 new_df['Foto PKB'] = new_df.apply(lambda row: old_foto_map.get(row['No Polisi'], row['Foto PKB']), axis=1)
+                
+            if 'Status SPK Asuransi' in new_df.columns:
+                new_df['Status SPK Asuransi'] = new_df.apply(lambda row: old_spk_map.get(row['No Polisi'], row['Status SPK Asuransi']), axis=1)
+            if 'Status Pembayaran OR' in new_df.columns:
+                new_df['Status Pembayaran OR'] = new_df.apply(lambda row: old_or_map.get(row['No Polisi'], row['Status Pembayaran OR']), axis=1)
+            if 'Kelengkapan Dokumen Asuransi' in new_df.columns:
+                new_df['Kelengkapan Dokumen Asuransi'] = new_df.apply(lambda row: old_dok_map.get(row['No Polisi'], row['Kelengkapan Dokumen Asuransi']), axis=1)
             
             new_nopol_list = new_df['No Polisi'].tolist()
             missing_df = old_df[~old_df['No Polisi'].isin(new_nopol_list)].copy()
@@ -363,13 +374,12 @@ def upload_foto_cloud(img_file):
         return None
 
 # ==========================================
-# 🚀 PENGIRIMAN WA GREEN API
+# 🚀 PENGIRIMAN WA GREEN API & EMAIL
 # ==========================================
-def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls):
+def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls, spk_status, or_status, dok_status):
     target_wa = []
     wa_error_messages = [] 
     
-    # 📌 Logika 1: Pisahkan berdasarkan SA & Kecualikan jika "Menunggu Part" (Kirim ke Admin Part)
     if status == "Menunggu Part":
         target_wa.extend(WA_ADMIN_PART)
     else:
@@ -388,9 +398,12 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
         wa_error_messages.append(f"Tidak ada nomor WA tujuan untuk SA '{nama_sa}' dan bukan fallback (Kategori: {kategori}).")
         return wa_error_messages
     
+    # 🌟 Format Text WA dengan penambahan info asuransi
     pesan_wa = f"*UPDATE STATUS KENDARAAN*\n\n🚘 *No Polisi:* {nopol}\n👤 *SA:* {nama_sa}\n🛠️ *Kategori:* {kategori}\n📊 *Status Terkini:* {status}\n📝 *Catatan:* {catatan}"
     
-    # 🌟 Konfigurasi Header dan Endpoint untuk Green API
+    if spk_status != "-" or or_status != "-" or dok_status != "-":
+        pesan_wa += f"\n\n🛡️ *Data Asuransi:*\n📄 SPK: {spk_status}\n💰 Bayar OR: {or_status}\n📁 Dokumen: {dok_status}"
+    
     headers = {'Content-Type': 'application/json'}
     base_url = f"{GREEN_API_HOST.rstrip('/')}/waInstance{GREEN_API_ID_INSTANCE}"
     url_send_text = f"{base_url}/sendMessage/{GREEN_API_TOKEN}"
@@ -399,16 +412,11 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
     try:
         for number in target_wa:
             if not number.strip(): continue
-            
-            # Green API Mewajibkan format @c.us untuk nomor WhatsApp Personal
             chat_id = f"{number.strip()}@c.us"
             
             if list_foto_urls:
-                # 📸 Kirim Image Multiple dengan Green API (sendFileByUrl)
                 for i, url in enumerate(list_foto_urls):
                     if not url.startswith("http"): continue
-                    
-                    # Foto pertama diberi caption pesan utama, foto selanjutnya hanya label
                     caption = pesan_wa if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
                     
                     payload = {
@@ -417,29 +425,21 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
                         "fileName": f"Update_Kendaraan_{i+1}.jpg",
                         "caption": caption
                     }
-                    
                     res = requests.post(url_send_file, headers=headers, json=payload, timeout=15)
-                    
-                    # Cek jika Green API mengembalikan error
                     if str(res.status_code) != "200":
                         wa_error_messages.append(f"Gagal kirim gambar ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
-
             else:
-                # 💬 Kirim Text Only (sendMessage)
                 payload = {
                     "chatId": chat_id,
                     "message": pesan_wa
                 }
-                
                 res = requests.post(url_send_text, headers=headers, json=payload, timeout=10)
-                
                 if str(res.status_code) != "200":
                     wa_error_messages.append(f"Gagal kirim teks ke {number}. Kode HTTP: {res.status_code}. Info: {res.text}")
 
     except Exception as e:
         wa_error_messages.append(f"Error Koneksi Server Green API: {str(e)}")
         
-    # --- Blok Email Dibiarkan Sesuai Kode Asli Anda ---
     try:
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
@@ -447,6 +447,9 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
         msg['Subject'] = f"Update Status ({kategori}) - No Polisi: {nopol} [{status}]"
         
         body = f"Terdapat update pada kendaraan No Polisi: {nopol}\nNama SA: {nama_sa}\nKategori Pekerjaan: {kategori}\nStatus Terkini: {status}\nCatatan: {catatan}\n"
+        if spk_status != "-" or or_status != "-" or dok_status != "-":
+            body += f"\n--- Info Asuransi ---\nStatus SPK: {spk_status}\nPembayaran OR: {or_status}\nKelengkapan Dokumen: {dok_status}\n"
+
         if list_foto_urls:
             body += "\nLink Foto Terkini:\n" + "\n".join(list_foto_urls)
         body += "\n\nSalam, Admin Service DSO Karawaci."
@@ -546,7 +549,7 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
         st.success(f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | SA: {nama_sa} | {data_kendaraan.get('Tipe Kendaraan', '-')}")
         
         with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
-            st.markdown("**📌 Status & Keterangan**")
+            st.markdown("**📌 Status Pekerjaan Utama**")
             
             opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
             if kategori_asli == "Body Repair":
@@ -558,6 +561,36 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
             new_status = st.selectbox("Progress Pekerjaan:", opsi_status, index=idx)
             new_ket = st.text_area("Catatan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')))
             
+            # 🌟 TAMBAHAN FITUR ASURANSI
+            st.markdown("---")
+            curr_spk = str(data_kendaraan.get('Status SPK Asuransi', '-'))
+            is_asuransi = st.checkbox("🛡️ Centang jika ini Pelanggan Asuransi", value=True if curr_spk not in ["-", ""] else False)
+            
+            if is_asuransi:
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    opsi_spk = ["-", "Menunggu SPK", "SPK Turun", "Revisi SPK"]
+                    idx_spk = opsi_spk.index(curr_spk) if curr_spk in opsi_spk else 0
+                    new_spk = st.selectbox("Status SPK:", opsi_spk, index=idx_spk)
+                
+                with col2:
+                    curr_or = str(data_kendaraan.get('Status Pembayaran OR', '-'))
+                    opsi_or = ["-", "Belum Bayar OR", "Sudah Bayar OR"]
+                    idx_or = opsi_or.index(curr_or) if curr_or in opsi_or else 0
+                    new_or = st.selectbox("Status Pembayaran OR:", opsi_or, index=idx_or)
+                
+                with col3:
+                    curr_dok = str(data_kendaraan.get('Kelengkapan Dokumen Asuransi', '-'))
+                    opsi_dok = ["-", "Dokumen Belum Lengkap", "Dokumen Lengkap"]
+                    idx_dok = opsi_dok.index(curr_dok) if curr_dok in opsi_dok else 0
+                    new_dok = st.selectbox("Dokumen Klaim:", opsi_dok, index=idx_dok)
+            else:
+                new_spk = "-"
+                new_or = "-"
+                new_dok = "-"
+
+            st.markdown("---")
             st.markdown("**📸 Foto Kondisi Kendaraan**")
             foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
             
@@ -593,6 +626,12 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                             
                         df.loc[df['No Polisi'] == selected_nopol, 'Status Pekerjaan'] = new_status
                         df.loc[df['No Polisi'] == selected_nopol, 'Keterangan Lanjutan'] = new_ket
+                        
+                        # Simpan Data Asuransi ke DF
+                        df.loc[df['No Polisi'] == selected_nopol, 'Status SPK Asuransi'] = new_spk
+                        df.loc[df['No Polisi'] == selected_nopol, 'Status Pembayaran OR'] = new_or
+                        df.loc[df['No Polisi'] == selected_nopol, 'Kelengkapan Dokumen Asuransi'] = new_dok
+                        
                         df.loc[df['No Polisi'] == selected_nopol, 'Tanggal Terakhir Diupdate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         
                         st.session_state['df_data'] = df
@@ -602,7 +641,8 @@ def execute_form_logic(selected_nopol, list_nopol, kategori_filter):
                         if sukses:
                             foto_terkirim_urls = link_fotos if link_fotos else ([f.strip() for f in foto_saat_ini.split(',') if f.strip().startswith("http")] if foto_saat_ini != "-" else [])
                             
-                            wa_errors = send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, nama_sa, foto_terkirim_urls)
+                            # Jalankan WA Notification (dengan params asuransi)
+                            wa_errors = send_auto_email_wa(selected_nopol, new_status, new_ket, kategori_asli, nama_sa, foto_terkirim_urls, new_spk, new_or, new_dok)
                             target_notif = "Admin Part" if new_status == "Menunggu Part" else f"SA {nama_sa}"
                             
                             if wa_errors:
@@ -702,6 +742,11 @@ if not df.empty:
                         new_data['Nama SA'] = nama_sa_baru.upper()
                         new_data['No PKB'] = "BELUM ADA"
                         new_data['Foto PKB'] = ", ".join(link_fotos) if link_fotos else "-"
+                        
+                        # Reset nilai asuransi pada data tamu
+                        new_data['Status SPK Asuransi'] = "-"
+                        new_data['Status Pembayaran OR'] = "-"
+                        new_data['Kelengkapan Dokumen Asuransi'] = "-"
                         
                         df_new_row = pd.DataFrame([new_data])
                         df_updated = pd.concat([df, df_new_row], ignore_index=True)
