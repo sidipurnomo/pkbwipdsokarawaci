@@ -19,7 +19,7 @@ except ImportError:
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 # Pastikan URL ini sudah diupdate jika Anda melakukan redeploy Apps Script baru.
-APPS_SCRIPT_URL = "https://script.google.com/home/projects/1CgJuqQGkXczbxUOtvj1sue5lrkvLVj4WwMITcMEDazOYEUGCM1L5egVE/edit"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxBA7MJMxTXEzonMi_WK3cAphhPF5aoWb3IFduUoYBuY5pvRZ1pDi7MfEiGR-hwE-3v/exec"
 
 # Konfigurasi Notifikasi Email
 SENDER_EMAIL = "akunbodong@gmail.com"
