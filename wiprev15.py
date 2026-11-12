@@ -43,6 +43,7 @@ WA_SA_BR_FALLBACK = ["6287774134574"]
 WA_SA_GR_FALLBACK = ["6287774134574"]
 WA_ADMIN_PART = ["6289630028860", "6285888874700"]
 
+# Kolom standar agar aplikasi tetap berjalan meski spreadsheet masih kosong
 STANDARD_COLUMNS = [
     'No PKB', 'Tipe Kendaraan', 'No Polisi', 'Nama Customer', 'Kategori',
     'Status Pekerjaan', 'Nama SA', 'Tgl PKB', 'Tanggal Terakhir Diupdate',
@@ -142,7 +143,15 @@ if st.session_state['logged_in']:
 
 def render_login():
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown(f"<h1 class='title-glowing'><img src='{DAIHATSU_LOGO_PNG}' style='height: 40px; margin-right: 15px;'> PKB WIP DSO KARAWACI</h1>", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <h1 class='title-glowing'>
+            <img src='{DAIHATSU_LOGO_PNG}' style='height: 40px; margin-right: 15px;'>
+            PKB WIP DSO KARAWACI
+        </h1>
+        """,
+        unsafe_allow_html=True
+    )
     st.markdown("""
     <style>
         div[data-testid="stForm"] { max-width: 450px !important; margin: 0 auto !important; padding: 2rem !important; box-shadow: 0px 8px 20px rgba(0,0,0,0.05) !important; }
@@ -171,7 +180,10 @@ if not st.session_state['logged_in']:
 # 🚪 SIDEBAR MENU KIRI
 # ==========================================
 with st.sidebar:
-    st.markdown(f"<div style='text-align: center;'><img src='{DAIHATSU_LOGO_PNG}' style='width: 120px;'></div>", unsafe_allow_html=True)
+    st.markdown(
+        f"""<div style='text-align: center;'><img src='{DAIHATSU_LOGO_PNG}' style='width: 120px;'></div>""",
+        unsafe_allow_html=True
+    )
     st.markdown("<h3 style='text-align:center; color:#2e7d32;'>Astra Daihatsu<br>Karawaci</h3>", unsafe_allow_html=True)
     menu_pilihan = st.radio(
         "Pilih Halaman:",
@@ -194,40 +206,8 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 🌐 NORMALISASI & INTEGRASI CLOUD
+# 🌐 INTEGRASI CLOUD & SPREADSHEET
 # ==========================================
-def normalisasi_kategori(val):
-    """Menyeragamkan variasi teks kategori di Sheets (GR / General Repair, BR / Body Repair)."""
-    s = str(val).strip().upper()
-    if s in ["", "-", "NAN", "NONE"]:
-        return "-"
-    if s in ["GR", "G.R", "GENERAL REPAIR", "GENERAL", "SERVICE", "SERVIS"] or "GENERAL" in s or s.startswith("GR"):
-        return "General Repair"
-    if s in ["BR", "B.R", "BODY REPAIR", "BODY", "BODY & PAINT", "BP"] or "BODY" in s or s.startswith("BR"):
-        return "Body Repair"
-    return str(val).strip()
-
-def normalisasi_status(status_val, kategori_norm):
-    """Menyeragamkan status pekerjaan dan memberi default jika kosong."""
-    s = str(status_val).strip()
-    s_up = s.upper()
-    default_status = "Antrian Pekerjaan" if kategori_norm == "Body Repair" else "Menunggu Pekerjaan"
-
-    if s_up in ["", "-", "NAN", "NONE", "BELUM DIKERJAKAN", "ANTRI", "ANTRIAN"]:
-        return default_status
-    if s_up == "SELESAI":
-        return "Selesai"
-
-    semua_status = [
-        "Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai",
-        "Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul",
-        "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan"
-    ]
-    for st_valid in semua_status:
-        if s_up == st_valid.upper():
-            return st_valid
-    return s
-
 def hitung_progress(kategori, status):
     if status == "Selesai":
         return 100
@@ -251,6 +231,7 @@ def hitung_progress(kategori, status):
     return 0
 
 def post_to_apps_script(payload, timeout=30):
+    """Mengirim request POST ke Google Apps Script dan memvalidasi respons JSON."""
     try:
         headers = {"Content-Type": "text/plain;charset=utf-8"}
         response = requests.post(
@@ -316,16 +297,6 @@ def load_data():
         if df.empty:
             return empty_df
 
-        # Bersihkan spasi nama kolom
-        df.columns = [str(c).strip() for c in df.columns]
-
-        # Antisipasi jika nama kolom kategori di sheet berbeda (misal 'Kategori Pekerjaan' / 'Jenis Pekerjaan')
-        if 'Kategori' not in df.columns:
-            for alt_col in ['Kategori Pekerjaan', 'Jenis Pekerjaan', 'Tipe Pekerjaan', 'Divisi', 'Workshop']:
-                if alt_col in df.columns:
-                    df['Kategori'] = df[alt_col]
-                    break
-
         if 'No Polisi' in df.columns:
             df['No Polisi'] = df['No Polisi'].astype(str).str.strip().str.upper()
             df = df[df['No Polisi'].notna() & (~df['No Polisi'].isin(['', '-', 'NAN', 'NONE']))]
@@ -350,12 +321,6 @@ def load_data():
             if col not in df.columns:
                 df[col] = "-"
 
-        # Normalisasi Kategori & Status Pekerjaan agar GR dan BR selalu terbaca di masing-masing dashboard
-        df['Kategori'] = df['Kategori'].apply(normalisasi_kategori)
-        df['Status Pekerjaan'] = df.apply(
-            lambda row: normalisasi_status(row['Status Pekerjaan'], row['Kategori']), axis=1
-        )
-
         if 'No PKB' in df.columns and 'Tipe Kendaraan' in df.columns:
             cols = list(df.columns)
             cols.remove('Tipe Kendaraan')
@@ -376,9 +341,10 @@ def load_data():
                 cols.insert(cols.index('Tgl PKB') + 1, 'Umur PKB (Hari)')
                 df = df[cols]
 
-        df['Progress (%)'] = df.apply(
-            lambda row: hitung_progress(row['Kategori'], row['Status Pekerjaan']), axis=1
-        )
+        if 'Kategori' in df.columns and 'Status Pekerjaan' in df.columns:
+            df['Progress (%)'] = df.apply(
+                lambda row: hitung_progress(row['Kategori'], row['Status Pekerjaan']), axis=1
+            )
 
         return df
     except requests.exceptions.RequestException as e:
@@ -400,6 +366,7 @@ def prepare_df_for_sheet(df):
     return df_clean.fillna("-").astype(str)
 
 def save_data(df):
+    """Menyimpan seluruh tabel ke Google Sheets."""
     df_to_save = prepare_df_for_sheet(df)
     payload_save = {
         "action": "save_data",
@@ -414,6 +381,7 @@ def save_data(df):
         return False
 
 def add_row_to_sheet(row_dict, full_df_fallback):
+    """Menambahkan 1 baris baru ke Google Sheets (dengan fallback save_data)."""
     clean_row = {col: str(row_dict.get(col, "-")) for col in STANDARD_COLUMNS}
     payload = {
         "action": "add_row",
@@ -426,6 +394,7 @@ def add_row_to_sheet(row_dict, full_df_fallback):
     return save_data(full_df_fallback)
 
 def update_row_in_sheet(nopol, updated_fields, full_df_fallback):
+    """Mengedit 1 baris kendaraan di Google Sheets berdasarkan No Polisi."""
     payload = {
         "action": "update_row",
         "nopol": str(nopol).strip().upper(),
@@ -565,9 +534,20 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, list_foto_urls
         msg['To'] = "deny.hermawan@dso.astra.co.id, hendri.yogasaputra@dso.astra.co.id"
         msg['Subject'] = f"Update Status ({kategori}) - No Polisi: {nopol} [{status}]"
 
-        body = f"Terdapat update pada kendaraan No Polisi: {nopol}\nNama SA: {nama_sa}\nKategori Pekerjaan: {kategori}\nStatus Terkini: {status}\nCatatan: {catatan}\n"
+        body = (
+            f"Terdapat update pada kendaraan No Polisi: {nopol}\n"
+            f"Nama SA: {nama_sa}\n"
+            f"Kategori Pekerjaan: {kategori}\n"
+            f"Status Terkini: {status}\n"
+            f"Catatan: {catatan}\n"
+        )
         if spk_status != "-" or or_status != "-" or dok_status != "-":
-            body += f"\n--- Info Asuransi ---\nStatus SPK: {spk_status}\nPembayaran OR: {or_status}\nKelengkapan Dokumen: {dok_status}\n"
+            body += (
+                f"\n--- Info Asuransi ---\n"
+                f"Status SPK: {spk_status}\n"
+                f"Pembayaran OR: {or_status}\n"
+                f"Kelengkapan Dokumen: {dok_status}\n"
+            )
         if list_foto_urls:
             body += "\nLink Foto Terkini:\n" + "\n".join(list_foto_urls)
         body += "\n\nSalam, Admin Service DSO Karawaci."
@@ -591,22 +571,6 @@ def style_umur_pkb(val):
         pass
     return ''
 
-def get_table_column_configs(target_df):
-    column_configs = {
-        "Aksi WA Part 1": st.column_config.LinkColumn("Hubungi WA 1", display_text="💬 Chat Part 1"),
-        "Aksi WA Part 2": st.column_config.LinkColumn("Hubungi WA 2", display_text="💬 Chat Part 2"),
-        "Aksi Email Part": st.column_config.LinkColumn("Hubungi via Email", display_text="📧 Email Admin Part")
-    }
-    if 'Progress (%)' in target_df.columns:
-        column_configs["Progress (%)"] = st.column_config.ProgressColumn(
-            "Persentase Selesai",
-            help="Bar Progress Status Pekerjaan",
-            format="%d%%",
-            min_value=0,
-            max_value=100
-        )
-    return column_configs
-
 if 'notif_sukses' in st.session_state:
     st.success(st.session_state['notif_sukses'])
     del st.session_state['notif_sukses']
@@ -615,4 +579,351 @@ if 'wa_errors' in st.session_state:
     st.error("⚠️ **GAGAL MENGIRIM WHATSAPP (GREEN API):**\n\n" + "\n".join(st.session_state['wa_errors']))
     del st.session_state['wa_errors']
 
-st.markdown(f"<h3 style='text-align: left
+st.markdown(
+    f"""
+    <h3 style='text-align: left; display: flex; align-items: center; color: #1b5e20;'>
+        <img src='{DAIHATSU_LOGO_PNG}' style='height: 30px; margin-right: 15px;'>
+        Live Service Dashboard
+    </h3>
+    """,
+    unsafe_allow_html=True
+)
+
+df_wip = df[df['Status Pekerjaan'] != 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else df
+df_selesai = df[df['Status Pekerjaan'] == 'Selesai'] if not df.empty and 'Status Pekerjaan' in df.columns else pd.DataFrame(columns=STANDARD_COLUMNS)
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric(label="Total Unit WIP", value=f"{len(df_wip)} Unit")
+if not df_wip.empty and 'Kategori' in df_wip.columns:
+    m2.metric(label="Antrean GR", value=f"{len(df_wip[df_wip['Kategori'] == 'General Repair'])} Unit")
+    m3.metric(label="Antrean BR", value=f"{len(df_wip[df_wip['Kategori'] == 'Body Repair'])} Unit")
+else:
+    m2.metric(label="Antrean GR", value="0 Unit")
+    m3.metric(label="Antrean BR", value="0 Unit")
+m4.metric(label="Unit Selesai", value=f"{len(df_selesai)} Unit")
+
+st.markdown("<hr style='border: 1px solid #dcedc8; margin-top: 5px; margin-bottom: 20px;'>", unsafe_allow_html=True)
+
+def render_update_form(kategori_filter):
+    st.markdown(f"#### 🔎 Pencarian Kendaraan WIP ({kategori_filter})")
+    if df_wip.empty:
+        return st.warning("Tidak ada data WIP saat ini.")
+
+    df_kategori = df_wip[df_wip['Kategori'] == kategori_filter]
+    list_nopol = df_kategori['No Polisi'].dropna().unique().tolist()
+
+    metode_cari = st.radio("Metode:", ["Pilih dari List", "Ketik Manual"], key=f"rad_{kategori_filter}", horizontal=True)
+    if metode_cari == "Pilih dari List":
+        selected_nopol = st.selectbox("Pilih No Polisi", [""] + list_nopol)
+    else:
+        selected_nopol = st.text_input("Ketik No Polisi").strip().upper()
+
+    execute_form_logic(selected_nopol, kategori_filter)
+
+def render_mobile_form():
+    st.markdown("#### 📱 Menu Update Mobile (WIP)")
+    if df_wip.empty:
+        return st.warning("Tidak ada data WIP saat ini.")
+
+    list_nopol = df_wip['No Polisi'].dropna().unique().tolist()
+
+    tab1, tab2 = st.tabs(["📝 Pilih dari List", "⌨️ Cari Manual"])
+    with tab1:
+        nopol_list = st.selectbox("Cari No Polisi Kendaraan", [""] + list_nopol, key="mob_list")
+    with tab2:
+        nopol_man = st.text_input("Ketik No Polisi", key="mob_man").strip().upper()
+
+    selected_nopol = nopol_list if nopol_list else nopol_man
+    execute_form_logic(selected_nopol, None)
+
+def execute_form_logic(selected_nopol, kategori_filter):
+    global df
+    if selected_nopol and not df.empty and selected_nopol in df['No Polisi'].values:
+        data_kendaraan = df[df['No Polisi'] == selected_nopol].iloc[-1]
+        kategori_asli = data_kendaraan.get('Kategori', 'General Repair')
+        nama_sa = str(data_kendaraan.get('Nama SA', '-'))
+
+        st.success(
+            f"🎯 **{data_kendaraan.get('Nama Customer', '-')}** | {selected_nopol} | "
+            f"SA: {nama_sa} | {data_kendaraan.get('Tipe Kendaraan', '-')}"
+        )
+
+        with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
+            st.markdown("**📌 Status Pekerjaan Utama**")
+
+            opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
+            if kategori_asli == "Body Repair":
+                opsi_status = [
+                    "Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul",
+                    "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan",
+                    "Menunggu Part", "Quality Control", "Selesai"
+                ]
+
+            curr_status = str(data_kendaraan.get('Status Pekerjaan', ''))
+            idx = opsi_status.index(curr_status) if curr_status in opsi_status else 0
+
+            new_status = st.selectbox("Progress Pekerjaan:", opsi_status, index=idx)
+            new_ket = st.text_area("Catatan Tambahan:", value=str(data_kendaraan.get('Keterangan Lanjutan', '-')))
+
+            st.markdown("---")
+            curr_spk = str(data_kendaraan.get('Status SPK Asuransi', '-'))
+            is_asuransi = st.checkbox(
+                "🛡️ Centang jika ini Pelanggan Asuransi",
+                value=True if curr_spk not in ["-", ""] else False
+            )
+
+            if is_asuransi:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    opsi_spk = ["-", "Menunggu SPK", "SPK Turun", "Revisi SPK"]
+                    idx_spk = opsi_spk.index(curr_spk) if curr_spk in opsi_spk else 0
+                    new_spk = st.selectbox("Status SPK:", opsi_spk, index=idx_spk)
+                with col2:
+                    curr_or = str(data_kendaraan.get('Status Pembayaran OR', '-'))
+                    opsi_or = ["-", "Belum Bayar OR", "Sudah Bayar OR"]
+                    idx_or = opsi_or.index(curr_or) if curr_or in opsi_or else 0
+                    new_or = st.selectbox("Status Pembayaran OR:", opsi_or, index=idx_or)
+                with col3:
+                    curr_dok = str(data_kendaraan.get('Kelengkapan Dokumen Asuransi', '-'))
+                    opsi_dok = ["-", "Dokumen Belum Lengkap", "Dokumen Lengkap"]
+                    idx_dok = opsi_dok.index(curr_dok) if curr_dok in opsi_dok else 0
+                    new_dok = st.selectbox("Dokumen Klaim:", opsi_dok, index=idx_dok)
+            else:
+                new_spk = "-"
+                new_or = "-"
+                new_dok = "-"
+
+            st.markdown("---")
+            st.markdown("**📸 Foto Kondisi Kendaraan**")
+            foto_saat_ini = str(data_kendaraan.get('Foto PKB', '-')).strip()
+
+            if foto_saat_ini != "-":
+                list_foto_lama = [f.strip() for f in foto_saat_ini.split(',') if f.strip().startswith("http")]
+                if list_foto_lama:
+                    cols = st.columns(min(len(list_foto_lama), 4))
+                    for i, f_url in enumerate(list_foto_lama):
+                        cols[i % 4].image(f_url, caption=f"Foto Terakhir {i+1}")
+
+            uploaded_fotos = st.file_uploader(
+                "Upload Foto Baru (Bisa Lebih Dari Satu)",
+                type=['jpg', 'jpeg', 'png'],
+                accept_multiple_files=True,
+                key=f"upload_{selected_nopol}"
+            )
+
+            if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
+                if kategori_asli == "Body Repair" and not uploaded_fotos and new_status != curr_status:
+                    st.error("🛑 GAGAL UPDATE: Kategori Body Repair DIWAJIBKAN mengunggah foto saat update status!")
+                else:
+                    upload_sukses = True
+                    link_fotos = []
+
+                    if uploaded_fotos:
+                        with st.spinner("Mengupload foto ke Google Drive..."):
+                            for foto in uploaded_fotos:
+                                link = upload_foto_cloud(foto)
+                                if link:
+                                    link_fotos.append(link)
+                                else:
+                                    upload_sukses = False
+                                    break
+
+                    if upload_sukses:
+                        waktu_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        foto_final = ", ".join(link_fotos) if link_fotos else foto_saat_ini
+
+                        updates = {
+                            'Status Pekerjaan': new_status,
+                            'Keterangan Lanjutan': new_ket,
+                            'Status SPK Asuransi': new_spk,
+                            'Status Pembayaran OR': new_or,
+                            'Kelengkapan Dokumen Asuransi': new_dok,
+                            'Tanggal Terakhir Diupdate': waktu_update,
+                            'Foto PKB': foto_final
+                        }
+
+                        for col_name, val in updates.items():
+                            df.loc[df['No Polisi'] == selected_nopol, col_name] = val
+
+                        with st.spinner("Menyinkronkan perubahan ke Google Sheets..."):
+                            sukses = update_row_in_sheet(selected_nopol, updates, df)
+
+                        if sukses:
+                            foto_terkirim_urls = link_fotos if link_fotos else (
+                                [f.strip() for f in foto_saat_ini.split(',') if f.strip().startswith("http")]
+                                if foto_saat_ini != "-" else []
+                            )
+                            wa_errors = send_auto_email_wa(
+                                selected_nopol, new_status, new_ket, kategori_asli, nama_sa,
+                                foto_terkirim_urls, new_spk, new_or, new_dok
+                            )
+                            target_notif = "Admin Part" if new_status == "Menunggu Part" else f"SA {nama_sa}"
+
+                            if wa_errors:
+                                st.session_state['wa_errors'] = wa_errors
+                                st.session_state['notif_sukses'] = (
+                                    f"⚠️ Data {selected_nopol} berhasil diupdate di G-Sheets, TAPI WA Gagal terkirim."
+                                )
+                            else:
+                                st.session_state['notif_sukses'] = (
+                                    f"✅ Data {selected_nopol} berhasil diperbarui di Spreadsheet! "
+                                    f"WA terkirim otomatis ke {target_notif}."
+                                )
+                            st.rerun()
+                    else:
+                        st.error("🛑 Gagal menyimpan karena ada error saat unggah foto.")
+    elif selected_nopol:
+        st.error("❌ Kendaraan tidak ditemukan di Database.")
+
+# ==========================================
+# 🖥️ RENDER HALAMAN BERDASARKAN MENU
+# ==========================================
+if menu_pilihan == "➕ TAMBAH MOBIL TAMU":
+    st.markdown("#### 🚗 Input Kendaraan Tamu / Manual")
+    st.info("Fitur ini digunakan untuk memasukkan kendaraan baru ke Google Sheets (baik database masih kosong maupun sudah terisi).")
+
+    with st.form("form_input_tamu", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            nopol_baru = st.text_input("No Polisi *").strip().upper()
+            nama_cust_baru = st.text_input("Nama Customer", value="TAMU / NON-PKB").strip().upper()
+            tipe_baru = st.text_input("Tipe Kendaraan *").strip()
+            warna_baru = st.text_input("Warna Kendaraan").strip()
+        with c2:
+            nama_sa_baru = st.text_input("Nama SA *").strip().upper()
+            kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
+            catatan_baru = st.text_area("Keterangan Awal / Keluhan").strip()
+            foto_barus = st.file_uploader(
+                "Upload Foto Kendaraan (Bisa Multiple)",
+                type=['jpg', 'jpeg', 'png'],
+                accept_multiple_files=True
+            )
+
+        st.markdown("*Wajib diisi")
+
+        if st.form_submit_button("💾 SIMPAN DATA KENDARAAN", width="stretch"):
+            if not nopol_baru or not tipe_baru or not nama_sa_baru:
+                st.error("⚠️ No Polisi, Tipe Kendaraan, dan Nama SA wajib diisi!")
+            else:
+                link_fotos = []
+                upload_sukses = True
+
+                if foto_barus:
+                    with st.spinner("Mengupload foto..."):
+                        for foto in foto_barus:
+                            link = upload_foto_cloud(foto)
+                            if link:
+                                link_fotos.append(link)
+                            else:
+                                upload_sukses = False
+                                break
+
+                if upload_sukses:
+                    gabungan_tipe = f"{tipe_baru} ({warna_baru})" if warna_baru else tipe_baru
+                    new_data = {
+                        'No PKB': "BELUM ADA",
+                        'Tipe Kendaraan': gabungan_tipe,
+                        'No Polisi': nopol_baru,
+                        'Nama Customer': nama_cust_baru if nama_cust_baru else "TAMU / NON-PKB",
+                        'Kategori': kategori_baru,
+                        'Status Pekerjaan': "Menunggu Pekerjaan" if kategori_baru == "General Repair" else "Antrian Pekerjaan",
+                        'Nama SA': nama_sa_baru,
+                        'Tgl PKB': datetime.now().strftime("%Y-%m-%d"),
+                        'Tanggal Terakhir Diupdate': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'Keterangan Lanjutan': catatan_baru if catatan_baru else "-",
+                        'Foto PKB': ", ".join(link_fotos) if link_fotos else "-",
+                        'Status SPK Asuransi': "-",
+                        'Status Pembayaran OR': "-",
+                        'Kelengkapan Dokumen Asuransi': "-"
+                    }
+
+                    df_new_row = pd.DataFrame([new_data])
+                    df_updated = pd.concat([df, df_new_row], ignore_index=True) if not df.empty else df_new_row
+
+                    with st.spinner("Menambahkan data ke Google Sheets..."):
+                        sukses = add_row_to_sheet(new_data, df_updated)
+
+                    if sukses:
+                        st.session_state['notif_sukses'] = f"✅ Kendaraan Tamu {nopol_baru} berhasil ditambahkan ke Spreadsheet!"
+                        st.rerun()
+                else:
+                    st.error("🛑 Gagal menyimpan karena ada error saat unggah foto.")
+
+    st.markdown("---")
+    st.markdown("#### 📋 Riwayat Kendaraan Tamu (Input Manual)")
+    if not df.empty and 'No PKB' in df.columns:
+        df_tamu = df[df['No PKB'] == "BELUM ADA"].copy()
+        if not df_tamu.empty:
+            st.success(f"Ditemukan {len(df_tamu)} kendaraan tamu terdaftar.")
+            kolom_tampil = [
+                'No Polisi', 'Nama Customer', 'Tipe Kendaraan', 'Nama SA',
+                'Kategori', 'Status Pekerjaan', 'Keterangan Lanjutan',
+                'Tgl PKB', 'Tanggal Terakhir Diupdate'
+            ]
+            kolom_tampil_tersedia = [col for col in kolom_tampil if col in df_tamu.columns]
+            st.dataframe(df_tamu[kolom_tampil_tersedia], width="stretch", hide_index=True)
+        else:
+            st.info("Belum ada kendaraan tamu yang ditambahkan secara manual.")
+    else:
+        st.info("Database masih kosong. Silakan tambahkan data menggunakan form di atas.")
+
+elif not df.empty:
+    if menu_pilihan == "📊 SEMUA WIP":
+        df_display = df_wip.copy()
+        column_configs = {
+            "Aksi WA Part 1": st.column_config.LinkColumn("Hubungi WA 1", display_text="💬 Chat Part 1"),
+            "Aksi WA Part 2": st.column_config.LinkColumn("Hubungi WA 2", display_text="💬 Chat Part 2"),
+            "Aksi Email Part": st.column_config.LinkColumn("Hubungi via Email", display_text="📧 Email Admin Part")
+        }
+        if 'Progress (%)' in df_display.columns:
+            column_configs["Progress (%)"] = st.column_config.ProgressColumn(
+                "Persentase Selesai",
+                help="Bar Progress Status Pekerjaan",
+                format="%d%%",
+                min_value=0,
+                max_value=100
+            )
+        st.dataframe(
+            df_display.style.map(
+                style_umur_pkb,
+                subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_display.columns else []
+            ),
+            width="stretch",
+            hide_index=True,
+            column_config=column_configs
+        )
+    elif menu_pilihan == "📱 TAMPILAN MOBILE":
+        render_mobile_form()
+    elif menu_pilihan == "🛠️ ANTREAN GR":
+        st.dataframe(
+            df_wip[df_wip['Kategori'] == 'General Repair'].style.map(
+                style_umur_pkb,
+                subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []
+            ),
+            width="stretch",
+            hide_index=True
+        )
+    elif menu_pilihan == "📝 UPDATE GR":
+        render_update_form("General Repair")
+    elif menu_pilihan == "🔨 ANTREAN BR":
+        st.dataframe(
+            df_wip[df_wip['Kategori'] == 'Body Repair'].style.map(
+                style_umur_pkb,
+                subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_wip.columns else []
+            ),
+            width="stretch",
+            hide_index=True
+        )
+    elif menu_pilihan == "📝 UPDATE BR":
+        render_update_form("Body Repair")
+    elif menu_pilihan == "✅ RIWAYAT SELESAI":
+        st.dataframe(
+            df_selesai.style.map(
+                style_umur_pkb,
+                subset=['Umur PKB (Hari)'] if 'Umur PKB (Hari)' in df_selesai.columns else []
+            ),
+            width="stretch",
+            hide_index=True
+        )
+else:
+    st.info("📭 Database di Google Sheets masih kosong. Buka menu **➕ TAMBAH MOBIL TAMU** di sidebar kiri untuk mulai menginput data.")
