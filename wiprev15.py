@@ -18,6 +18,8 @@ except ImportError:
 # ==========================================
 # KONFIGURASI CLOUD & API
 # ==========================================
+SPREADSHEET_ID = "1SJCyPYrFiWSH1IPAD1wNpt1Sv-5UT4d3UneFaq-2HSI"
+
 DEFAULT_APPS_SCRIPT_URL = (
     "https://script.google.com/macros/s/AKfycbwo677uVcO_D-tRWwAhLpTNo4mp5R1jLdiSZwqc4Nxp7rXhEmsvn_BjMWTxV24DKHIc/exec"
 )
@@ -33,7 +35,6 @@ WA_SA_MAP = {
     "MUHAMM086163": "628558825962",
 }
 
-# Daftar kode/nama SA khusus Body Repair (deteksi otomatis jika kolom Kategori kosong)
 SA_BODY_REPAIR = ["SAHRIM022761", "SAHRIM"]
 
 WA_SA_BR_FALLBACK = ["6287774134574"]
@@ -189,7 +190,6 @@ def extract_html_title(html_text):
     return match.group(1).strip() if match else "Halaman HTML Google"
 
 def format_gdrive_display_url(url):
-    """Mengubah link Google Drive menjadi URL thumbnail agar tampil stabil di Streamlit."""
     u = str(url).strip()
     m = re.search(r"(?:id=|/d/)([a-zA-Z0-9_-]{15,})", u)
     if "drive.google.com" in u and m:
@@ -197,7 +197,6 @@ def format_gdrive_display_url(url):
     return u
 
 def normalize_kategori(row):
-    """Menstandarkan nilai Kategori menjadi 'Body Repair' atau 'General Repair'."""
     raw_kat = str(row.get("Kategori", "-")).strip().upper()
     sa = str(row.get("Nama SA", "-")).strip().upper()
     pkb = str(row.get("No PKB", "-")).strip().upper()
@@ -259,7 +258,7 @@ def hitung_progress(kategori, status):
 
 def post_to_apps_script(payload, timeout=35):
     base_url = get_apps_script_url()
-    sheet_tab = str(st.session_state.get("selected_sheet_tab", "")).strip()
+    sheet_tab = str(st.session_state.get("selected_sheet_tab", "DATABASE")).strip()
     if sheet_tab and "sheetName" not in payload:
         payload["sheetName"] = sheet_tab
     try:
@@ -350,7 +349,6 @@ def _is_table_list(val):
     return isinstance(val[0], (list, dict))
 
 def parse_raw_payload_to_df(data, preferred_tab="DATABASE"):
-    """Mengubah berbagai struktur JSON dari Apps Script menjadi DataFrame secara aman."""
     if not data:
         return pd.DataFrame(), "Respons JSON kosong."
 
@@ -368,7 +366,6 @@ def parse_raw_payload_to_df(data, preferred_tab="DATABASE"):
                 extracted_list = data[key]
                 break
 
-        # Jika belum ketemu, pilih list tabel (2D list / list of dict) yang paling banyak barisnya
         if extracted_list is None:
             table_candidates = [v for v in data.values() if _is_table_list(v)]
             if table_candidates:
@@ -417,14 +414,28 @@ def parse_raw_payload_to_df(data, preferred_tab="DATABASE"):
 
     return pd.DataFrame(), f"Format data tidak dikenali: {type(data[0])}"
 
+def fetch_sheet_csv_fallback(sheet_tab="DATABASE"):
+    """Cadangan otomatis: membaca langsung dari Google Sheets jika Apps Script belum di-deploy ulang."""
+    try:
+        sheet_encoded = urllib.parse.quote(str(sheet_tab or "DATABASE"))
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_encoded}"
+        res = requests.get(csv_url, timeout=15)
+        if res.status_code == 200 and res.text.strip() and "<!DOCTYPE html>" not in res.text:
+            df_csv = pd.read_csv(io.StringIO(res.text), dtype=str).fillna("")
+            if not df_csv.empty:
+                return df_csv, f"OK (Direct Google Sheets CSV - Tab {sheet_tab})"
+    except Exception as e:
+        return pd.DataFrame(), f"Fallback CSV gagal: {e}"
+    return pd.DataFrame(), "Fallback CSV kosong."
+
 @st.cache_data(ttl=15)
 def load_data(script_url, sheet_tab="DATABASE"):
     empty_df = pd.DataFrame(columns=STANDARD_COLUMNS)
     diag = {
         "status": "Belum terhubung",
         "version": "-",
-        "sheet_name": sheet_tab or "-",
-        "all_sheets": [],
+        "sheet_name": sheet_tab or "DATABASE",
+        "all_sheets": ["DATABASE", "SELESAI", "UNIT TAMU"],
         "raw_cols": [],
         "raw_count": 0,
         "raw_kat_sample": [],
@@ -437,35 +448,32 @@ def load_data(script_url, sheet_tab="DATABASE"):
         res = requests.get(f"{script_url}?{urllib.parse.urlencode(params)}", timeout=15, allow_redirects=True)
         diag["raw_preview"] = res.text[:500]
 
-        if res.status_code != 200:
-            diag["status"] = f"HTTP Error {res.status_code}"
-            st.error(f"Gagal koneksi Cloud. HTTP: {res.status_code}")
-            return empty_df, diag
+        df_raw = pd.DataFrame()
+        parse_msg = "Respons kosong."
 
-        if "<!DOCTYPE html>" in res.text or "<html" in res.text.lower():
-            html_title = extract_html_title(res.text)
-            diag["status"] = f"Akses Ditolak ({html_title})"
-            st.error(
-                f"Akses GET ditolak ({html_title}). Pastikan Apps Script diset ke 'Anyone' (bukan 'Anyone with a Google account') dan pakai URL /exec terbaru."
-            )
-            return empty_df, diag
+        if res.status_code == 200 and "<!DOCTYPE html>" not in res.text and "<html" not in res.text.lower():
+            try:
+                raw_json = res.json()
+                if isinstance(raw_json, dict):
+                    diag["version"] = raw_json.get("version", "-")
+                    diag["sheet_name"] = raw_json.get("sheetName", sheet_tab or "DATABASE")
+                    if isinstance(raw_json.get("allSheets"), list) and raw_json["allSheets"]:
+                        diag["all_sheets"] = raw_json["allSheets"]
+                df_raw, parse_msg = parse_raw_payload_to_df(raw_json, preferred_tab=sheet_tab or "DATABASE")
+            except ValueError:
+                parse_msg = f"Bukan JSON: {res.text[:120]}"
+        elif "<!DOCTYPE html>" in res.text or "<html" in res.text.lower():
+            parse_msg = f"Akses Apps Script Ditolak ({extract_html_title(res.text)})"
+        else:
+            parse_msg = f"HTTP Error {res.status_code}"
 
-        try:
-            raw_json = res.json()
-        except ValueError:
-            diag["status"] = f"Bukan JSON: {res.text[:120]}"
-            st.error("Respons GET dari Apps Script bukan JSON valid.")
-            return empty_df, diag
+        # Jika Apps Script lama mengembalikan JSON kosong / error, gunakan pembacaan langsung Google Sheets
+        if df_raw.empty:
+            df_fb, fb_msg = fetch_sheet_csv_fallback(sheet_tab or "DATABASE")
+            if not df_fb.empty:
+                df_raw = df_fb
+                parse_msg = f"{fb_msg} [Apps Script lama: {parse_msg}]"
 
-        if isinstance(raw_json, dict):
-            diag["version"] = raw_json.get("version", "-")
-            diag["sheet_name"] = raw_json.get("sheetName", sheet_tab or "-")
-            if isinstance(raw_json.get("allSheets"), list):
-                diag["all_sheets"] = raw_json["allSheets"]
-            elif isinstance(raw_json.get("sheets"), list):
-                diag["all_sheets"] = raw_json["sheets"]
-
-        df_raw, parse_msg = parse_raw_payload_to_df(raw_json, preferred_tab=sheet_tab or "DATABASE")
         diag["status"] = parse_msg
         diag["raw_cols"] = list(df_raw.columns) if not df_raw.empty else []
         diag["raw_count"] = len(df_raw)
@@ -496,7 +504,6 @@ def load_data(script_url, sheet_tab="DATABASE"):
         if mask_has_data.any():
             df = df[mask_has_data].reset_index(drop=True)
         else:
-            # Fallback jika nama header berbeda jauh namun baris memiliki isi di kolom lain
             mask_any = df.apply(lambda r: any(val != "-" for val in r), axis=1)
             df = df[mask_any].reset_index(drop=True)
 
@@ -615,7 +622,6 @@ def upload_foto_cloud(img_file):
     return None
 
 def resolve_sa_wa(nama_sa, kategori):
-    """Mencari nomor WhatsApp SA berdasarkan kode lengkap maupun potongan nama SA."""
     sa_clean = str(nama_sa).strip().upper()
     if sa_clean and sa_clean != "-":
         if sa_clean in WA_SA_MAP:
@@ -1025,12 +1031,8 @@ if menu_pilihan == "📊 SEMUA WIP":
         st.write(f"**Kolom Asli di Sheet:** `{diag_info.get('raw_cols')}`")
         st.write(f"**Nilai Mentah Kolom Kategori di Sheet:** `{diag_info.get('raw_kat_sample')}`")
 
-        if diag_info.get("raw_preview"):
-            st.caption("Cuplikan Respons Mentah dari Apps Script:")
-            st.code(diag_info["raw_preview"], language="json")
-
         c_tab1, c_tab2 = st.columns([3, 1])
-        detected_sheets = diag_info.get("all_sheets") or ["DATABASE", "Data_WIP", "SELESAI", "UNIT TAMU"]
+        detected_sheets = diag_info.get("all_sheets") or ["DATABASE", "SELESAI", "UNIT TAMU"]
         curr_tab = st.session_state.get("selected_sheet_tab", "DATABASE")
         if curr_tab not in detected_sheets:
             detected_sheets = [curr_tab] + detected_sheets
