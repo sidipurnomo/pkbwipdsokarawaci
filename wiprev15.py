@@ -362,22 +362,30 @@ def upload_foto_cloud(img_file):
     }
 
     try:
-        res = requests.post(APPS_SCRIPT_URL, json=payload, timeout=45)
+        res = requests.post(APPS_SCRIPT_URL, json=payload, timeout=60)
     except requests.exceptions.RequestException as e:
         st.error(f"❌ Gagal terhubung ke server Apps Script: {e}")
+        return None
+
+    # Cek apakah respons kosong (indikasi kuat Apps Script belum di-deploy ulang)
+    if not res.text.strip():
+        st.error("❌ Google Apps Script mengembalikan respons KOSONG.")
+        st.warning("💡 **TINDAKAN WAJIB:** Anda perlu memperbarui Web App di Apps Script: Buka Google Apps Script -> Klik tombol biru **Deploy (Penerapan)** -> **Manage Deployments (Kelola Penerapan)** -> Klik ikon Pensil (Edit) -> Pada kolom **Version**, WAJIB pilih **New version (Versi baru)** -> Lalu tekan **Deploy**.")
         return None
 
     try:
         data = res.json()
     except ValueError:
-        st.error(f"❌ Respons tidak valid (Status {res.status_code}).")
+        st.error(f"❌ Respons tidak valid dari Apps Script (Format JSON salah).")
+        st.code(res.text[:300], language="html")
+        st.warning("💡 **TINDAKAN WAJIB:** Anda perlu memperbarui Web App di Apps Script: Buka Google Apps Script -> Klik tombol biru **Deploy (Penerapan)** -> **Manage Deployments (Kelola Penerapan)** -> Klik ikon Pensil (Edit) -> Pada kolom **Version**, WAJIB pilih **New version (Versi baru)** -> Lalu tekan **Deploy**.")
         return None
 
     if res.status_code == 200 and data.get('success'):
         return data.get('url')
     else:
-        err_msg = data.get('error', 'Penyebab tidak diketahui')
-        st.error(f"❌ Upload GDrive Gagal (Status {res.status_code}): {err_msg}")
+        err_msg = data.get('error', 'Penyebab tidak diketahui. Pastikan Anda sudah memasukkan ID Folder Drive dengan benar pada Code.gs')
+        st.error(f"❌ Upload GDrive Gagal: {err_msg}")
         return None
 
 # ==========================================
