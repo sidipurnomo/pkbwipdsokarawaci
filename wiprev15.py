@@ -19,7 +19,7 @@ except ImportError:
 # ==========================================
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybnr3sAxBqsyghspXAZlyVOPq83ILSziZountsF2M7UUV_H-uqcn0iJUr5IBmO1v63/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyRmzJLc8UJHQ05ggdoy9S6fsF3CPhsxMTZpaPfHeqNmwP_3nIHHsg-39GWi8HNUqd3/exec"
 
 # Konfigurasi Notifikasi Email
 SENDER_EMAIL = "akunbodong@gmail.com"
