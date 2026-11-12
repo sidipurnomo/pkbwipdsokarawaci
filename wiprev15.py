@@ -6,10 +6,7 @@ import requests
 import io
 import base64
 import json
-import urllib.parse
 from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 try:
     from PIL import Image
@@ -23,9 +20,6 @@ except ImportError:
 APPS_SCRIPT_URL = (
     "https://script.google.com/macros/s/AKfycbz1HVlqkDGS64H8R30C-HxcwptGGTKynZctmT4jAJ0C0i8xxee_OQtHfQoKAUohUIk/exec"
 )
-
-SENDER_EMAIL = "akunbodong@gmail.com"
-SENDER_APP_PASSWORD = "apabae"
 
 GREEN_API_HOST = "https://7107.api.greenapi.com"
 GREEN_API_ID_INSTANCE = "710722681804"
@@ -248,7 +242,6 @@ def normalize_kategori(row):
     sa = str(row.get("Nama SA", "-")).strip().upper()
     pkb = str(row.get("No PKB", "-")).strip().upper()
 
-    # 1. Cek langsung dari kolom Kategori jika sudah terisi
     if raw_kat not in ["", "-", "NONE", "NAN", "NULL"]:
         if (
             "BODY" in raw_kat
@@ -263,17 +256,14 @@ def normalize_kategori(row):
         ):
             return "General Repair"
 
-    # 2. Fallback otomatis berdasarkan Nama SA (misal SAHRIM022761 = Body Repair)
     if any(sa_br in sa for sa_br in SA_BODY_REPAIR):
         return "Body Repair"
 
-    # 3. Fallback berdasarkan kode di No PKB (jika mengandung kode BR / GR)
     if re.search(r"[-_/]BR[-_/]|^BR\d", pkb):
         return "Body Repair"
     if re.search(r"[-_/]GR[-_/]|^GR\d", pkb):
         return "General Repair"
 
-    # 4. Default ke General Repair agar semua unit WIP terhitung akurat
     return "General Repair"
 
 def hitung_progress(kategori, status):
@@ -285,12 +275,12 @@ def hitung_progress(kategori, status):
         return 50
     if st_up == "quality control":
         return 90
-    if kat_up == "general repair" or kat_up == "gr":
+    if kat_up in ["general repair", "gr"]:
         if st_up == "menunggu pekerjaan":
             return 10
         if st_up == "sedang dikerjakan":
             return 60
-    elif kat_up == "body repair" or kat_up == "br":
+    elif kat_up in ["body repair", "br"]:
         br_steps = [
             "antrian pekerjaan", "bongkar", "ketok / las", "dempul",
             "epoxy", "pengecatan / oven", "poles", "perakitan / pemasangan"
@@ -341,7 +331,7 @@ def normalize_columns(df):
     return df.rename(columns=rename_map) if rename_map else df
 
 def parse_raw_payload_to_df(data):
-    """Mengubah berbagai struktur JSON dari Apps Script (list dict, dict wrapper, atau 2D array) menjadi DataFrame."""
+    """Mengubah berbagai struktur JSON dari Apps Script menjadi DataFrame."""
     if not data:
         return pd.DataFrame(), "Respons JSON kosong."
 
@@ -399,33 +389,6 @@ def parse_raw_payload_to_df(data):
 
     return pd.DataFrame(), f"Format data tidak dikenali: {type(data[0])}"
 
-def build_action_links(df):
-    if df.empty:
-        return df
-    wa1 = WA_ADMIN_PART[0] if len(WA_ADMIN_PART) > 0 else ""
-    wa2 = WA_ADMIN_PART[1] if len(WA_ADMIN_PART) > 1 else wa1
-
-    def make_wa(num, row):
-        if not num:
-            return ""
-        nopol = row.get("No Polisi", "-")
-        pkb = row.get("No PKB", "-")
-        msg = urllib.parse.quote(f"Halo Admin Part, info part No Polisi: {nopol} (PKB: {pkb}).")
-        return f"https://wa.me/{num}?text={msg}"
-
-    def make_mail(row):
-        nopol = row.get("No Polisi", "-")
-        subj = urllib.parse.quote(f"Follow Up Part - {nopol}")
-        return f"mailto:part.karawaci@dso.astra.co.id?subject={subj}"
-
-    if "Aksi WA Part 1" not in df.columns and wa1:
-        df["Aksi WA Part 1"] = df.apply(lambda r: make_wa(wa1, r), axis=1)
-    if "Aksi WA Part 2" not in df.columns and wa2:
-        df["Aksi WA Part 2"] = df.apply(lambda r: make_wa(wa2, r), axis=1)
-    if "Aksi Email Part" not in df.columns:
-        df["Aksi Email Part"] = df.apply(make_mail, axis=1)
-    return df
-
 @st.cache_data(ttl=15)
 def load_data():
     empty_df = pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -462,7 +425,10 @@ def load_data():
             if col not in df.columns:
                 df[col] = "-"
 
-        # Bersihkan nilai kosong/None menjadi "-"
+        # Hapus kolom aksi WA/Email lama jika terbawa dari sheet
+        legacy_action_cols = ["Aksi WA Part 1", "Aksi WA Part 2", "Aksi Email Part", "Aksi WA Part"]
+        df = df.drop(columns=legacy_action_cols, errors="ignore")
+
         for col in df.columns:
             df[col] = df[col].apply(
                 lambda v: "-" if v is None or str(v).strip() in ["", "None", "nan", "NaN", "null"] else str(v).strip()
@@ -473,7 +439,6 @@ def load_data():
         df["No Polisi"] = df["No Polisi"].str.upper()
         df["Nama SA"] = df["Nama SA"].str.upper()
 
-        # Hapus hanya baris yang benar-benar kosong seluruh kolom utamanya
         check_cols = ["No PKB", "No Polisi", "Nama Customer", "Tipe Kendaraan", "Nama SA"]
         mask_has_data = df[check_cols].apply(lambda r: any(val != "-" for val in r), axis=1)
         df = df[mask_has_data].reset_index(drop=True)
@@ -482,10 +447,8 @@ def load_data():
             diag["status"] = "Semua baris kosong setelah pembersihan."
             return empty_df, diag
 
-        # Normalisasi & deteksi otomatis Kategori ('Body Repair' vs 'General Repair')
         df["Kategori"] = df.apply(normalize_kategori, axis=1)
 
-        # Deduplikasi aman
         def make_identifier(row):
             pkb = str(row.get("No PKB", "-")).strip().upper()
             nopol = str(row.get("No Polisi", "-")).strip().upper()
@@ -501,7 +464,6 @@ def load_data():
         extra_cols = [c for c in df.columns if c not in STANDARD_COLUMNS]
         df = df[STANDARD_COLUMNS + extra_cols]
 
-        # Hitung Umur PKB
         parsed_tgl = pd.to_datetime(df["Tgl PKB"], errors="coerce").dt.tz_localize(None)
         now = pd.Timestamp.now().normalize()
         df["Umur PKB (Hari)"] = (now - parsed_tgl).dt.days.fillna(0).astype(int)
@@ -515,7 +477,7 @@ def load_data():
         df["Progress (%)"] = df.apply(
             lambda r: hitung_progress(r["Kategori"], r["Status Pekerjaan"]), axis=1
         )
-        return build_action_links(df), diag
+        return df, diag
     except Exception as e:
         diag["status"] = f"Exception: {e}"
         st.error(f"Kesalahan saat memuat data Cloud: {e}")
@@ -554,16 +516,18 @@ def add_row_to_sheet(row_dict, fallback_df):
         return True
     return save_data(fallback_df)
 
-def update_row_in_sheet(nopol, updates, fallback_df):
+def update_row_in_sheet(nopol, updates, fallback_df, no_pkb="-"):
     payload = {
         "action": "update_row",
         "nopol": str(nopol).strip().upper(),
+        "no_pkb": str(no_pkb).strip().upper(),
         "updates": {k: str(v) for k, v in updates.items()}
     }
     sukses, _, _ = post_to_apps_script(payload, timeout=25)
     if sukses:
         load_data.clear()
         return True
+    # Fallback sinkronisasi penuh ke Google Sheets jika action update_row tidak cocok
     return save_data(fallback_df)
 
 def compress_image(img_file, max_dim=1600, max_kb=1024):
@@ -605,34 +569,45 @@ def upload_foto_cloud(img_file):
     return None
 
 # ==========================================
-# NOTIFIKASI WA GREEN API & EMAIL
+# NOTIFIKASI WHATSAPP OTOMATIS KE SA MASING-MASING (GREEN API)
 # ==========================================
-def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, foto_urls, spk, status_or, dok):
-    target_wa = []
-    wa_errors = []
+def resolve_sa_wa(nama_sa, kategori):
+    """Mencari nomor WhatsApp SA berdasarkan kode lengkap maupun potongan nama SA."""
+    sa_clean = str(nama_sa).strip().upper()
+    if sa_clean and sa_clean != "-":
+        # 1. Cocok persis (misal: SAHRIM022761)
+        if sa_clean in WA_SA_MAP:
+            return [WA_SA_MAP[sa_clean]]
+        # 2. Cocok sebagian / awalan nama (misal: SAHRIM, MAULAN, BERLIA, MUHAMM)
+        for kode_sa, no_wa in WA_SA_MAP.items():
+            prefix = re.sub(r"\d+", "", kode_sa)
+            if kode_sa in sa_clean or sa_clean in kode_sa or (prefix and prefix in sa_clean):
+                return [no_wa]
 
+    # 3. Fallback berdasarkan kategori jika SA belum terdaftar di WA_SA_MAP
+    if kategori == "Body Repair":
+        return list(WA_SA_BR_FALLBACK)
+    return list(WA_SA_GR_FALLBACK)
+
+def send_auto_wa(nopol, status, catatan, kategori, nama_sa, foto_urls, spk="-", status_or="-", dok="-", no_pkb="-"):
+    target_wa = resolve_sa_wa(nama_sa, kategori)
     if status == "Menunggu Part":
         target_wa.extend(WA_ADMIN_PART)
-    else:
-        sa_key = str(nama_sa).strip().upper()
-        if sa_key in WA_SA_MAP:
-            target_wa.append(WA_SA_MAP[sa_key])
-        elif kategori == "Body Repair":
-            target_wa.extend(WA_SA_BR_FALLBACK)
-        elif kategori == "General Repair":
-            target_wa.extend(WA_SA_GR_FALLBACK)
 
-    target_wa = list(set(target_wa))
+    target_wa = list(dict.fromkeys([num.strip() for num in target_wa if str(num).strip()]))
+    wa_errors = []
+
     if not target_wa:
         wa_errors.append(f"Tidak ada nomor WA tujuan untuk SA '{nama_sa}'.")
         return wa_errors
 
     pesan = (
-        f"*UPDATE STATUS KENDARAAN*\n\n"
+        f"*UPDATE PROGRESS KENDARAAN*\n\n"
+        f"No PKB: {no_pkb}\n"
         f"No Polisi: {nopol}\n"
         f"SA: {nama_sa}\n"
         f"Kategori: {kategori}\n"
-        f"Status: {status}\n"
+        f"Status: *{status}*\n"
         f"Catatan: {catatan}"
     )
     if spk != "-" or status_or != "-" or dok != "-":
@@ -643,21 +618,18 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, foto_urls, spk
     url_text = f"{base_url}/sendMessage/{GREEN_API_TOKEN}"
     url_file = f"{base_url}/sendFileByUrl/{GREEN_API_TOKEN}"
 
+    valid_urls = [u.strip() for u in (foto_urls or []) if str(u).strip().startswith("http")]
+
     try:
-        for num in target_wa:
-            clean_num = num.strip()
-            if not clean_num:
-                continue
+        for clean_num in target_wa:
             chat_id = f"{clean_num}@c.us"
-            if foto_urls:
-                for i, url in enumerate(foto_urls):
-                    if not url.startswith("http"):
-                        continue
-                    cap = pesan if i == 0 else f"Lanjutan Foto ({i+1}) - {nopol}"
+            if valid_urls:
+                for i, url in enumerate(valid_urls):
+                    cap = pesan if i == 0 else f"Foto Progress ({i+1}) - {nopol} [{status}]"
                     body_file = {
                         "chatId": chat_id,
-                        "urlFile": url.strip(),
-                        "fileName": f"Update_{i+1}.jpg",
+                        "urlFile": url,
+                        "fileName": f"Progress_{nopol.replace(' ', '_')}_{i+1}.jpg",
                         "caption": cap
                     }
                     r = requests.post(url_file, headers=headers, json=body_file, timeout=15)
@@ -670,15 +642,6 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, foto_urls, spk
                     wa_errors.append(f"Gagal kirim pesan ke {clean_num}: HTTP {r.status_code}")
     except Exception as e:
         wa_errors.append(f"Error Green API: {e}")
-
-    try:
-        msg = MIMEMultipart()
-        msg["From"] = SENDER_EMAIL
-        msg["To"] = "deny.hermawan@dso.astra.co.id, hendri.yogasaputra@dso.astra.co.id"
-        msg["Subject"] = f"Update Status ({kategori}) - {nopol} [{status}]"
-        msg.attach(MIMEText(pesan, "plain"))
-    except Exception:
-        pass
 
     return wa_errors
 
@@ -697,11 +660,9 @@ def style_umur_pkb(val):
     return ""
 
 def get_col_configs(target_df):
-    cfg = {
-        "Aksi WA Part 1": st.column_config.LinkColumn("WA Part 1", display_text="Chat Part 1"),
-        "Aksi WA Part 2": st.column_config.LinkColumn("WA Part 2", display_text="Chat Part 2"),
-        "Aksi Email Part": st.column_config.LinkColumn("Email Part", display_text="Email Part"),
-    }
+    cfg = {}
+    if "Foto PKB" in target_df.columns:
+        cfg["Foto PKB"] = st.column_config.TextColumn("Foto Progress")
     if "Progress (%)" in target_df.columns:
         cfg["Progress (%)"] = st.column_config.ProgressColumn(
             "Progress", format="%d%%", min_value=0, max_value=100
@@ -751,11 +712,16 @@ def execute_form_logic(selected_nopol):
         row = df[df["No Polisi"] == selected_nopol].iloc[-1]
         kat_asli = row.get("Kategori", "General Repair")
         nama_sa = str(row.get("Nama SA", "-"))
+        no_pkb = str(row.get("No PKB", "-"))
+        target_wa_preview = ", ".join(resolve_sa_wa(nama_sa, kat_asli))
 
         st.success(
             f"**{row.get('Nama Customer', '-')}** | {selected_nopol} | "
-            f"Kategori: **{kat_asli}** | SA: {nama_sa} | {row.get('Tipe Kendaraan', '-')}"
+            f"Kategori: **{kat_asli}** | SA: **{nama_sa}** (WA Otomatis: `{target_wa_preview}`) | {row.get('Tipe Kendaraan', '-')}"
         )
+
+        if kat_asli == "Body Repair":
+            st.warning("⚠️ Pekerjaan **Body Repair** wajib melampirkan foto progress terbaru setiap kali melakukan update.")
 
         with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
             opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
@@ -794,26 +760,31 @@ def execute_form_logic(selected_nopol):
 
             st.markdown("---")
             foto_lama = str(row.get("Foto PKB", "-")).strip()
-            if foto_lama != "-":
-                urls_lama = [u.strip() for u in foto_lama.split(",") if u.strip().startswith("http")]
-                if urls_lama:
-                    cols = st.columns(min(len(urls_lama), 4))
-                    for i, u in enumerate(urls_lama):
-                        cols[i % 4].image(u, caption=f"Foto {i+1}")
+            urls_lama = [u.strip() for u in foto_lama.split(",") if u.strip().startswith("http")] if foto_lama != "-" else []
+            if urls_lama:
+                st.caption("Foto Progress Sebelumnya:")
+                cols = st.columns(min(len(urls_lama), 4))
+                for i, u in enumerate(urls_lama):
+                    cols[i % 4].image(u, caption=f"Foto {i+1}")
 
+            label_upload = (
+                "Upload Foto Progress Terbaru (WAJIB untuk Body Repair) *"
+                if kat_asli == "Body Repair"
+                else "Upload Foto Progress (Opsional)"
+            )
             uploaded = st.file_uploader(
-                "Upload Foto Baru", type=["jpg", "jpeg", "png"],
+                label_upload, type=["jpg", "jpeg", "png"],
                 accept_multiple_files=True, key=f"up_{selected_nopol}"
             )
 
-            if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
-                if kat_asli == "Body Repair" and not uploaded and new_status != curr_status:
-                    st.error("Body Repair wajib unggah foto saat ubah status!")
+            if st.form_submit_button("💾 SIMPAN UPDATE & KIRIM WA KE SA", width="stretch"):
+                if kat_asli == "Body Repair" and not uploaded:
+                    st.error("❌ Pekerjaan Body Repair WAJIB mengunggah foto progress sebelum menyimpan update!")
                 else:
                     ok_up = True
                     new_links = []
                     if uploaded:
-                        with st.spinner("Mengupload foto..."):
+                        with st.spinner("Mengupload foto progress ke Google Drive..."):
                             for f in uploaded:
                                 link = upload_foto_cloud(f)
                                 if link:
@@ -822,7 +793,8 @@ def execute_form_logic(selected_nopol):
                                     ok_up = False
                                     break
                     if ok_up:
-                        foto_final = ", ".join(new_links) if new_links else foto_lama
+                        semua_foto = list(dict.fromkeys(urls_lama + new_links))
+                        foto_final = ", ".join(semua_foto) if semua_foto else "-"
                         updates = {
                             "Kategori": kat_asli,
                             "Status Pekerjaan": new_status,
@@ -836,23 +808,22 @@ def execute_form_logic(selected_nopol):
                         for k, v in updates.items():
                             df.loc[df["No Polisi"] == selected_nopol, k] = v
 
-                        with st.spinner("Menyimpan ke Google Sheets..."):
-                            sukses = update_row_in_sheet(selected_nopol, updates, df)
+                        with st.spinner("Memperbarui database Google Sheets..."):
+                            sukses = update_row_in_sheet(selected_nopol, updates, df, no_pkb=no_pkb)
 
                         if sukses:
-                            kirim_urls = new_links if new_links else (
-                                [u.strip() for u in foto_lama.split(",") if u.strip().startswith("http")]
-                                if foto_lama != "-" else []
-                            )
-                            wa_err = send_auto_email_wa(
+                            kirim_urls = new_links if new_links else urls_lama
+                            wa_err = send_auto_wa(
                                 selected_nopol, new_status, new_ket, kat_asli,
-                                nama_sa, kirim_urls, new_spk, new_or, new_dok
+                                nama_sa, kirim_urls, new_spk, new_or, new_dok, no_pkb=no_pkb
                             )
                             if wa_err:
                                 st.session_state["wa_errors"] = wa_err
-                                st.session_state["notif_sukses"] = f"Data {selected_nopol} tersimpan, tapi WA gagal."
+                                st.session_state["notif_sukses"] = f"Database {selected_nopol} diperbarui, namun notifikasi WA ke SA gagal."
                             else:
-                                st.session_state["notif_sukses"] = f"Data {selected_nopol} berhasil diupdate & WA terkirim!"
+                                st.session_state["notif_sukses"] = (
+                                    f"Database {selected_nopol} otomatis diperbarui & progress terkirim ke WA SA ({nama_sa})!"
+                                )
                             st.rerun()
     elif selected_nopol:
         st.error("Kendaraan tidak ditemukan di Database.")
@@ -979,11 +950,17 @@ elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
             nama_sa_baru = st.text_input("Nama SA *").strip().upper()
             kategori_baru = st.selectbox("Kategori Pekerjaan", ["General Repair", "Body Repair"])
             catatan_baru = st.text_area("Keterangan Awal / Keluhan").strip()
-            foto_barus = st.file_uploader("Upload Foto Kendaraan", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+            foto_barus = st.file_uploader(
+                "Upload Foto Kendaraan (Wajib untuk Body Repair)",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True
+            )
 
         if st.form_submit_button("💾 SIMPAN DATA KENDARAAN", width="stretch"):
             if not nopol_baru or not tipe_baru or not nama_sa_baru:
                 st.error("No Polisi, Tipe Kendaraan, dan Nama SA wajib diisi!")
+            elif kategori_baru == "Body Repair" and not foto_barus:
+                st.error("❌ Pekerjaan Body Repair WAJIB melampirkan foto awal/progress!")
             else:
                 link_fotos = []
                 ok_up = True
@@ -998,13 +975,14 @@ elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
                                 break
                 if ok_up:
                     gab_tipe = f"{tipe_baru} ({warna_baru})" if warna_baru else tipe_baru
+                    status_awal = "Menunggu Pekerjaan" if kategori_baru == "General Repair" else "Antrian Pekerjaan"
                     new_data = {
                         "No PKB": "BELUM ADA",
                         "Tipe Kendaraan": gab_tipe,
                         "No Polisi": nopol_baru,
                         "Nama Customer": nama_cust_baru or "TAMU / NON-PKB",
                         "Kategori": kategori_baru,
-                        "Status Pekerjaan": "Menunggu Pekerjaan" if kategori_baru == "General Repair" else "Antrian Pekerjaan",
+                        "Status Pekerjaan": status_awal,
                         "Nama SA": nama_sa_baru,
                         "Tgl PKB": datetime.now().strftime("%Y-%m-%d"),
                         "Tanggal Terakhir Diupdate": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1018,7 +996,15 @@ elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
                     df_upd = pd.concat([df, df_new], ignore_index=True) if not df.empty else df_new
                     with st.spinner("Menambahkan data ke Google Sheets..."):
                         if add_row_to_sheet(new_data, df_upd):
-                            st.session_state["notif_sukses"] = f"Kendaraan Tamu {nopol_baru} berhasil ditambahkan!"
+                            wa_err = send_auto_wa(
+                                nopol_baru, status_awal, catatan_baru or "Unit Tamu Masuk",
+                                kategori_baru, nama_sa_baru, link_fotos, no_pkb="BELUM ADA"
+                            )
+                            if wa_err:
+                                st.session_state["wa_errors"] = wa_err
+                            st.session_state["notif_sukses"] = (
+                                f"Kendaraan Tamu {nopol_baru} tersimpan ke database & notifikasi dikirim ke SA {nama_sa_baru}!"
+                            )
                             st.rerun()
 
     st.markdown("---")
