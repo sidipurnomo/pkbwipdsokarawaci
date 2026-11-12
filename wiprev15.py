@@ -21,7 +21,7 @@ except ImportError:
 SPREADSHEET_ID = "1SJCyPYrFiWSH1IPAD1wNpt1Sv-5UT4d3UneFaq-2HSI"
 
 DEFAULT_APPS_SCRIPT_URL = (
-    "https://script.google.com/macros/s/AKfycbyAtXj5WY31rphUzX7_Nv5CxjaaZFq_tpvhRMgwFAAo3qqg4zmXi2AjWDbq2bJmbu-I/exec"
+    "https://script.google.com/macros/s/AKfycbwo677uVcO_D-tRWwAhLpTNo4mp5R1jLdiSZwqc4Nxp7rXhEmsvn_BjMWTxV24DKHIc/exec"
 )
 
 GREEN_API_HOST = "https://7107.api.greenapi.com"
@@ -185,9 +185,12 @@ st.markdown("""
 # ==========================================
 # FUNGSI CLOUD, PARSING & NOTIFIKASI
 # ==========================================
-def extract_html_title(html_text):
-    match = re.search(r"<title>(.*?)</title>", html_text, re.IGNORECASE | re.DOTALL)
-    return match.group(1).strip() if match else "Halaman HTML Google"
+def extract_html_error_detail(html_text):
+    title_m = re.search(r"<title>(.*?)</title>", html_text, re.IGNORECASE | re.DOTALL)
+    title = title_m.group(1).strip() if title_m else "Error"
+    body_text = re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", html_text, flags=re.IGNORECASE | re.DOTALL)
+    body_clean = re.sub(r"\s+", " ", body_text).strip()
+    return f"{title}: {body_clean[:220]}" if body_clean else title
 
 def format_gdrive_display_url(url):
     u = str(url).strip()
@@ -256,24 +259,24 @@ def hitung_progress(kategori, status):
             return int(((br_steps.index(st_up) + 1) / len(br_steps)) * 85)
     return 0
 
-def post_to_apps_script(payload, timeout=35):
+def post_to_apps_script(payload, timeout=45):
     base_url = get_apps_script_url()
     sheet_tab = str(st.session_state.get("selected_sheet_tab", "DATABASE")).strip()
     if sheet_tab and "sheetName" not in payload:
         payload["sheetName"] = sheet_tab
+
+    action_name = payload.get("action", "")
+    query_params = {}
+    if action_name:
+        query_params["action"] = str(action_name)
+    if sheet_tab:
+        query_params["sheet"] = sheet_tab
+    target_url = f"{base_url}?{urllib.parse.urlencode(query_params)}" if query_params else base_url
+
     try:
-        headers = {"Content-Type": "text/plain;charset=utf-8"}
-        action_name = payload.get("action", "")
-        query_params = {}
-        if action_name:
-            query_params["action"] = str(action_name)
-        if sheet_tab:
-            query_params["sheet"] = sheet_tab
-        target_url = f"{base_url}?{urllib.parse.urlencode(query_params)}" if query_params else base_url
         res = requests.post(
             target_url,
-            data=json.dumps(payload),
-            headers=headers,
+            json=payload,
             timeout=timeout,
             allow_redirects=True
         )
@@ -281,17 +284,17 @@ def post_to_apps_script(payload, timeout=35):
         return False, f"Error koneksi jaringan: {e}", None
 
     if "<!DOCTYPE html>" in res.text or "<html" in res.text.lower():
-        html_title = extract_html_title(res.text)
+        detail = extract_html_error_detail(res.text)
         return (
             False,
-            f"Akses POST ditolak ({html_title}). Pastikan Apps Script sudah di-Deploy dengan akses 'Anyone' dan memakai URL /exec terbaru.",
+            f"Akses POST ditolak ({detail}). Pastikan fungsi 'tesAutorisasiDanFolder' sudah di-Run di Apps Script & di-Deploy ulang sebagai 'New version' dengan akses 'Anyone'.",
             None
         )
 
     try:
         res_json = res.json()
     except ValueError:
-        return False, f"Respons Apps Script bukan JSON valid: {res.text[:160]}", None
+        return False, f"Respons Apps Script bukan JSON valid: {res.text[:200]}", None
 
     if res.status_code == 200 and (res_json.get("success") is True or res_json.get("status") == "success"):
         return True, "OK", res_json
@@ -415,7 +418,6 @@ def parse_raw_payload_to_df(data, preferred_tab="DATABASE"):
     return pd.DataFrame(), f"Format data tidak dikenali: {type(data[0])}"
 
 def fetch_sheet_csv_fallback(sheet_tab="DATABASE"):
-    """Cadangan otomatis: membaca langsung dari Google Sheets jika Apps Script belum di-deploy ulang."""
     try:
         sheet_encoded = urllib.parse.quote(str(sheet_tab or "DATABASE"))
         csv_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_encoded}"
@@ -463,16 +465,15 @@ def load_data(script_url, sheet_tab="DATABASE"):
             except ValueError:
                 parse_msg = f"Bukan JSON: {res.text[:120]}"
         elif "<!DOCTYPE html>" in res.text or "<html" in res.text.lower():
-            parse_msg = f"Akses Apps Script Ditolak ({extract_html_title(res.text)})"
+            parse_msg = f"Akses Apps Script Ditolak ({extract_html_error_detail(res.text)})"
         else:
             parse_msg = f"HTTP Error {res.status_code}"
 
-        # Jika Apps Script lama mengembalikan JSON kosong / error, gunakan pembacaan langsung Google Sheets
         if df_raw.empty:
             df_fb, fb_msg = fetch_sheet_csv_fallback(sheet_tab or "DATABASE")
             if not df_fb.empty:
                 df_raw = df_fb
-                parse_msg = f"{fb_msg} [Apps Script lama: {parse_msg}]"
+                parse_msg = f"{fb_msg} [Apps Script: {parse_msg}]"
 
         diag["status"] = parse_msg
         diag["raw_cols"] = list(df_raw.columns) if not df_raw.empty else []
@@ -569,7 +570,7 @@ def update_row_in_sheet(nopol, updates, no_pkb="-"):
         return True, "OK"
     return False, msg
 
-def compress_image(img_file, max_dim=1600, max_kb=900):
+def compress_image(img_file, max_dim=1280, max_kb=450):
     raw_bytes = img_file.getvalue()
     if not PIL_AVAILABLE:
         return raw_bytes, img_file.name, img_file.type or "image/jpeg"
@@ -581,7 +582,7 @@ def compress_image(img_file, max_dim=1600, max_kb=900):
         if max(img.size) > max_dim:
             img.thumbnail((max_dim, max_dim), resample)
         buf = io.BytesIO()
-        q = 85
+        q = 80
         img.save(buf, format="JPEG", quality=q, optimize=True)
         while buf.tell() > max_kb * 1024 and q > 30:
             q -= 10
@@ -600,10 +601,8 @@ def upload_foto_cloud(img_file):
     payload = {
         "action": "upload_image",
         "filename": img_name,
-        "fileName": img_name,
         "mimeType": img_type,
-        "data": b64_str,
-        "base64": b64_str
+        "data": b64_str
     }
     sukses, msg, data = post_to_apps_script(payload, timeout=60)
     if sukses and isinstance(data, dict):
