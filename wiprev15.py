@@ -19,7 +19,7 @@ except ImportError:
 # KONFIGURASI CLOUD & API
 # ==========================================
 APPS_SCRIPT_URL = (
-    "https://script.google.com/macros/s/AKfycbx99m8RvuyJKb5_BjAkP0Hmpl4-8wamuyBF5Qy47YVEMhPvX6Vb-qfh1w7kEpVOn_TC/exec"
+    "https://script.google.com/macros/s/AKfycbz1HVlqkDGS64H8R30C-HxcwptGGTKynZctmT4jAJ0C0i8xxee_OQtHfQoKAUohUIk/exec"
 )
 
 GREEN_API_HOST = "https://7107.api.greenapi.com"
@@ -159,83 +159,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# SISTEM LOGIN & AUTO LOGOUT
-# ==========================================
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "last_activity" not in st.session_state:
-    st.session_state["last_activity"] = time.time()
-if "last_menu" not in st.session_state:
-    st.session_state["last_menu"] = None
-
-if st.session_state["logged_in"]:
-    if time.time() - st.session_state["last_activity"] > 1800:
-        st.session_state["logged_in"] = False
-        st.warning("Sesi berakhir. Silakan login kembali.")
-        time.sleep(2)
-        st.rerun()
-
-def render_login():
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    header_html = (
-        f"<h1 class='title-glowing'>"
-        f"<img src='{DAIHATSU_LOGO_PNG}' style='height:40px;margin-right:15px;'>"
-        f"PKB WIP DSO KARAWACI</h1>"
-    )
-    st.markdown(header_html, unsafe_allow_html=True)
-    with st.form("login_form"):
-        st.markdown("<h3 style='text-align:center;'>Login Dashboard</h3>", unsafe_allow_html=True)
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        if st.form_submit_button("LOGIN", width="stretch"):
-            if username == "dsokarawaci" and password == "adminkarawaci":
-                st.session_state["logged_in"] = True
-                st.session_state["last_activity"] = time.time()
-                st.rerun()
-            else:
-                st.error("Username atau Password Salah!")
-
-if not st.session_state["logged_in"]:
-    render_login()
-    st.stop()
-
-# ==========================================
-# SIDEBAR MENU KIRI
-# ==========================================
-with st.sidebar:
-    logo_html = f"<div style='text-align:center;'><img src='{DAIHATSU_LOGO_PNG}' style='width:120px;'></div>"
-    st.markdown(logo_html, unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center;color:#2e7d32;'>Astra Daihatsu<br>Karawaci</h3>", unsafe_allow_html=True)
-
-    menu_pilihan = st.radio(
-        "Pilih Halaman:",
-        [
-            "📊 SEMUA WIP",
-            "📱 TAMPILAN MOBILE",
-            "🛠️ ANTREAN GR",
-            "📝 UPDATE GR",
-            "🔨 ANTREAN BR",
-            "📝 UPDATE BR",
-            "✅ RIWAYAT SELESAI",
-            "➕ TAMBAH MOBIL TAMU"
-        ],
-        label_visibility="collapsed"
-    )
-
-    if menu_pilihan != st.session_state["last_menu"]:
-        st.session_state["last_activity"] = time.time()
-        st.session_state["last_menu"] = menu_pilihan
-
-    st.markdown("---")
-    if st.button("🔄 REFRESH DATA DARI CLOUD", width="stretch"):
-        load_data.clear()
-        st.rerun()
-    if st.button("LOGOUT", width="stretch"):
-        st.session_state["logged_in"] = False
-        st.rerun()
-
-# ==========================================
-# FUNGSI CLOUD & PARSING SPREADSHEET
+# FUNGSI CLOUD, PARSING & NOTIFIKASI
+# (Didefinisikan di atas sebelum UI dipanggil)
 # ==========================================
 def normalize_kategori(row):
     """Menstandarkan nilai Kategori menjadi 'Body Repair' atau 'General Repair'."""
@@ -598,9 +523,6 @@ def upload_foto_cloud(img_file):
     )
     return None
 
-# ==========================================
-# NOTIFIKASI WHATSAPP OTOMATIS KE SA MASING-MASING (GREEN API)
-# ==========================================
 def resolve_sa_wa(nama_sa, kategori):
     """Mencari nomor WhatsApp SA berdasarkan kode lengkap maupun potongan nama SA."""
     sa_clean = str(nama_sa).strip().upper()
@@ -672,12 +594,6 @@ def send_auto_wa(nopol, status, catatan, kategori, nama_sa, foto_urls, spk="-", 
 
     return wa_errors
 
-# ==========================================
-# DASHBOARD UTAMA
-# ==========================================
-df, diag_info = load_data()
-st.session_state["df_data"] = df
-
 def style_umur_pkb(val):
     try:
         if int(val) > 60:
@@ -695,6 +611,88 @@ def get_col_configs(target_df):
             "Progress", format="%d%%", min_value=0, max_value=100
         )
     return cfg
+
+# ==========================================
+# SISTEM LOGIN & AUTO LOGOUT
+# ==========================================
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "last_activity" not in st.session_state:
+    st.session_state["last_activity"] = time.time()
+if "last_menu" not in st.session_state:
+    st.session_state["last_menu"] = None
+
+if st.session_state["logged_in"]:
+    if time.time() - st.session_state["last_activity"] > 1800:
+        st.session_state["logged_in"] = False
+        st.warning("Sesi berakhir. Silakan login kembali.")
+        time.sleep(2)
+        st.rerun()
+
+def render_login():
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    header_html = (
+        f"<h1 class='title-glowing'>"
+        f"<img src='{DAIHATSU_LOGO_PNG}' style='height:40px;margin-right:15px;'>"
+        f"PKB WIP DSO KARAWACI</h1>"
+    )
+    st.markdown(header_html, unsafe_allow_html=True)
+    with st.form("login_form"):
+        st.markdown("<h3 style='text-align:center;'>Login Dashboard</h3>", unsafe_allow_html=True)
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("LOGIN", width="stretch"):
+            if username == "dsokarawaci" and password == "adminkarawaci":
+                st.session_state["logged_in"] = True
+                st.session_state["last_activity"] = time.time()
+                st.rerun()
+            else:
+                st.error("Username atau Password Salah!")
+
+if not st.session_state["logged_in"]:
+    render_login()
+    st.stop()
+
+# ==========================================
+# SIDEBAR MENU KIRI
+# ==========================================
+with st.sidebar:
+    logo_html = f"<div style='text-align:center;'><img src='{DAIHATSU_LOGO_PNG}' style='width:120px;'></div>"
+    st.markdown(logo_html, unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center;color:#2e7d32;'>Astra Daihatsu<br>Karawaci</h3>", unsafe_allow_html=True)
+
+    menu_pilihan = st.radio(
+        "Pilih Halaman:",
+        [
+            "📊 SEMUA WIP",
+            "📱 TAMPILAN MOBILE",
+            "🛠️ ANTREAN GR",
+            "📝 UPDATE GR",
+            "🔨 ANTREAN BR",
+            "📝 UPDATE BR",
+            "✅ RIWAYAT SELESAI",
+            "➕ TAMBAH MOBIL TAMU"
+        ],
+        label_visibility="collapsed"
+    )
+
+    if menu_pilihan != st.session_state["last_menu"]:
+        st.session_state["last_activity"] = time.time()
+        st.session_state["last_menu"] = menu_pilihan
+
+    st.markdown("---")
+    if st.button("🔄 REFRESH DATA DARI CLOUD", width="stretch"):
+        load_data.clear()
+        st.rerun()
+    if st.button("LOGOUT", width="stretch"):
+        st.session_state["logged_in"] = False
+        st.rerun()
+
+# ==========================================
+# DASHBOARD UTAMA
+# ==========================================
+df, diag_info = load_data()
+st.session_state["df_data"] = df
 
 if "notif_sukses" in st.session_state:
     st.success(st.session_state["notif_sukses"])
