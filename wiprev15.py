@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import re
 import requests
 import io
 import base64
@@ -51,31 +52,59 @@ STANDARD_COLUMNS = [
 
 COLUMN_ALIASES = {
     "no pkb": "No PKB",
-    "no. pkb": "No PKB",
     "nomor pkb": "No PKB",
+    "pkb": "No PKB",
+    "no wo": "No PKB",
+    "wo": "No PKB",
     "tipe kendaraan": "Tipe Kendaraan",
     "tipe": "Tipe Kendaraan",
+    "type": "Tipe Kendaraan",
+    "model": "Tipe Kendaraan",
+    "kendaraan": "Tipe Kendaraan",
     "no polisi": "No Polisi",
-    "no. polisi": "No Polisi",
     "nomor polisi": "No Polisi",
+    "no pol": "No Polisi",
     "nopol": "No Polisi",
+    "plat": "No Polisi",
+    "plat nomor": "No Polisi",
     "nama customer": "Nama Customer",
     "customer": "Nama Customer",
+    "nama pelanggan": "Nama Customer",
+    "pelanggan": "Nama Customer",
+    "pemilik": "Nama Customer",
     "kategori": "Kategori",
+    "kategori pekerjaan": "Kategori",
+    "jenis pekerjaan": "Kategori",
     "status pekerjaan": "Status Pekerjaan",
     "status": "Status Pekerjaan",
+    "progress": "Status Pekerjaan",
     "nama sa": "Nama SA",
     "sa": "Nama SA",
+    "service advisor": "Nama SA",
     "tgl pkb": "Tgl PKB",
     "tanggal pkb": "Tgl PKB",
+    "tgl masuk": "Tgl PKB",
+    "tanggal": "Tgl PKB",
     "tanggal terakhir diupdate": "Tanggal Terakhir Diupdate",
+    "last update": "Tanggal Terakhir Diupdate",
+    "updated at": "Tanggal Terakhir Diupdate",
     "keterangan lanjutan": "Keterangan Lanjutan",
     "keterangan": "Keterangan Lanjutan",
+    "catatan": "Keterangan Lanjutan",
+    "keluhan": "Keterangan Lanjutan",
     "foto pkb": "Foto PKB",
     "foto": "Foto PKB",
+    "link foto": "Foto PKB",
+    "dokumentasi": "Foto PKB",
     "status spk asuransi": "Status SPK Asuransi",
+    "status spk": "Status SPK Asuransi",
+    "spk": "Status SPK Asuransi",
     "status pembayaran or": "Status Pembayaran OR",
+    "pembayaran or": "Status Pembayaran OR",
+    "status or": "Status Pembayaran OR",
     "kelengkapan dokumen asuransi": "Kelengkapan Dokumen Asuransi",
+    "kelengkapan dokumen": "Kelengkapan Dokumen Asuransi",
+    "dokumen asuransi": "Kelengkapan Dokumen Asuransi",
 }
 
 DAIHATSU_LOGO_PNG = (
@@ -202,27 +231,29 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# FUNGSI CLOUD & SPREADSHEET
+# FUNGSI CLOUD & PARSING SPREADSHEET
 # ==========================================
 def hitung_progress(kategori, status):
-    if status == "Selesai":
+    st_up = str(status).strip().lower()
+    kat_up = str(kategori).strip().lower()
+    if st_up == "selesai":
         return 100
-    if status == "Menunggu Part":
+    if st_up == "menunggu part":
         return 50
-    if status == "Quality Control":
+    if st_up == "quality control":
         return 90
-    if kategori == "General Repair":
-        if status == "Menunggu Pekerjaan":
+    if "general" in kat_up or kat_up == "gr":
+        if st_up == "menunggu pekerjaan":
             return 10
-        if status == "Sedang Dikerjakan":
+        if st_up == "sedang dikerjakan":
             return 60
-    elif kategori == "Body Repair":
+    elif "body" in kat_up or kat_up == "br":
         br_steps = [
-            "Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul",
-            "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan"
+            "antrian pekerjaan", "bongkar", "ketok / las", "dempul",
+            "epoxy", "pengecatan / oven", "poles", "perakitan / pemasangan"
         ]
-        if status in br_steps:
-            return int(((br_steps.index(status) + 1) / len(br_steps)) * 85)
+        if st_up in br_steps:
+            return int(((br_steps.index(st_up) + 1) / len(br_steps)) * 85)
     return 0
 
 def post_to_apps_script(payload, timeout=30):
@@ -251,17 +282,82 @@ def post_to_apps_script(payload, timeout=30):
     err_msg = res_json.get("error") or res_json.get("message") or str(res_json)
     return False, err_msg, res_json
 
+def clean_header_key(col_name):
+    return re.sub(r"[\s._\-/]+", " ", str(col_name).strip().lower()).strip()
+
 def normalize_columns(df):
     rename_map = {}
     used_targets = set()
     for col in df.columns:
-        key = str(col).strip().lower()
+        key = clean_header_key(col)
         if key in COLUMN_ALIASES:
             target = COLUMN_ALIASES[key]
             if target not in used_targets:
                 rename_map[col] = target
                 used_targets.add(target)
     return df.rename(columns=rename_map) if rename_map else df
+
+def parse_raw_payload_to_df(data):
+    """Mengubah berbagai struktur JSON dari Apps Script (list dict, dict wrapper, atau 2D array) menjadi DataFrame."""
+    if not data:
+        return pd.DataFrame(), "Respons JSON kosong."
+
+    # 1. Jika dibungkus dictionary (misal {"data": [...]} atau {"values": [...]})
+    if isinstance(data, dict):
+        if data.get("status") == "error" or ("error" in data and not any(isinstance(v, list) for v in data.values())):
+            return pd.DataFrame(), f"Error dari Apps Script: {data.get('error', data)}"
+        extracted_list = None
+        for key in ["data", "values", "records", "rows", "result", "items"]:
+            if key in data and isinstance(data[key], list):
+                extracted_list = data[key]
+                break
+        if extracted_list is None:
+            for val in data.values():
+                if isinstance(val, list):
+                    extracted_list = val
+                    break
+        data = extracted_list if extracted_list is not None else [data]
+
+    if not isinstance(data, list) or len(data) == 0:
+        return pd.DataFrame(), "Data array kosong."
+
+    # 2. Jika berbentuk 2D Array (list of lists) dari getValues()
+    if isinstance(data[0], list):
+        header_idx = 0
+        best_score = -1
+        for i in range(min(5, len(data))):
+            row_keys = [clean_header_key(cell) for cell in data[i]]
+            score = sum(1 for k in row_keys if k in COLUMN_ALIASES)
+            if score > best_score:
+                best_score = score
+                header_idx = i
+
+        raw_headers = data[header_idx]
+        seen = {}
+        clean_headers = []
+        for idx, h in enumerate(raw_headers):
+            name = str(h).strip() if str(h).strip() else f"Kolom_{idx+1}"
+            if name in seen:
+                seen[name] += 1
+                name = f"{name}_{seen[name]}"
+            else:
+                seen[name] = 1
+            clean_headers.append(name)
+
+        rows = data[header_idx + 1:]
+        if not rows:
+            return pd.DataFrame(columns=clean_headers), "Header ditemukan, namun belum ada baris data di bawahnya."
+        padded_rows = [
+            r[:len(clean_headers)] + [""] * max(0, len(clean_headers) - len(r))
+            for r in rows
+        ]
+        return pd.DataFrame(padded_rows, columns=clean_headers), "OK (Format 2D Array)"
+
+    # 3. Jika berbentuk list of dicts
+    if isinstance(data[0], dict):
+        return pd.DataFrame(data), "OK (Format Object List)"
+
+    return pd.DataFrame(), f"Format data tidak dikenali: {type(data[0])}"
 
 def build_action_links(df):
     if df.empty:
@@ -293,69 +389,77 @@ def build_action_links(df):
 @st.cache_data(ttl=15)
 def load_data():
     empty_df = pd.DataFrame(columns=STANDARD_COLUMNS)
+    diag = {"status": "Belum terhubung", "raw_cols": [], "raw_count": 0}
     try:
         res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data", timeout=15, allow_redirects=True)
         if res.status_code != 200:
+            diag["status"] = f"HTTP Error {res.status_code}"
             st.error(f"Gagal koneksi Cloud. HTTP: {res.status_code}")
-            return empty_df
+            return empty_df, diag
+
         if "<!DOCTYPE html>" in res.text or "<html" in res.text.lower():
+            diag["status"] = "Akses Ditolak (HTML Login Google)"
             st.error("Akses GET ditolak (HTML). Pastikan Apps Script diset ke 'Anyone'.")
-            return empty_df
+            return empty_df, diag
+
         try:
-            data = res.json()
+            raw_json = res.json()
         except ValueError:
-            st.error("Respons GET bukan JSON valid.")
-            return empty_df
+            diag["status"] = f"Bukan JSON: {res.text[:120]}"
+            st.error("Respons GET dari Apps Script bukan JSON valid.")
+            return empty_df, diag
 
-        if not data:
-            return empty_df
+        df_raw, parse_msg = parse_raw_payload_to_df(raw_json)
+        diag["status"] = parse_msg
+        diag["raw_cols"] = list(df_raw.columns) if not df_raw.empty else []
+        diag["raw_count"] = len(df_raw)
 
-        if isinstance(data, dict):
-            if "data" in data and isinstance(data["data"], list):
-                df = pd.DataFrame(data["data"])
-            elif data.get("status") == "error":
-                st.error(f"Error Spreadsheet: {data.get('error', 'Unknown')}")
-                return empty_df
-            else:
-                df = pd.DataFrame([data])
-        else:
-            df = pd.DataFrame(data)
+        if df_raw.empty:
+            return empty_df, diag
 
-        if df.empty:
-            return empty_df
-
-        df = normalize_columns(df)
+        df = normalize_columns(df_raw.copy())
         for col in STANDARD_COLUMNS:
             if col not in df.columns:
                 df[col] = "-"
 
-        df["No Polisi"] = df["No Polisi"].fillna("-").astype(str).str.strip().str.upper()
-        df["No PKB"] = df["No PKB"].fillna("-").astype(str).str.strip()
+        # Bersihkan nilai kosong/None menjadi "-"
+        for col in df.columns:
+            df[col] = df[col].apply(
+                lambda v: "-" if v is None or str(v).strip() in ["", "None", "nan", "NaN", "null"] else str(v).strip()
+            )
 
-        mask_valid = (
-            (~df["No Polisi"].isin(["", "-", "NAN", "NONE"])) |
-            (~df["No PKB"].isin(["", "-", "NAN", "NONE"])) |
-            (~df["Nama Customer"].fillna("-").astype(str).str.strip().isin(["", "-", "nan", "None"]))
-        )
-        df = df[mask_valid].reset_index(drop=True)
+        df["No Polisi"] = df["No Polisi"].str.upper()
+
+        # Hapus hanya baris yang benar-benar kosong seluruh kolom utamanya
+        check_cols = ["No PKB", "No Polisi", "Nama Customer", "Tipe Kendaraan", "Kategori"]
+        mask_has_data = df[check_cols].apply(lambda r: any(val != "-" for val in r), axis=1)
+        df = df[mask_has_data].reset_index(drop=True)
+
         if df.empty:
-            return empty_df
+            diag["status"] = "Semua baris kosong setelah pembersihan."
+            return empty_df, diag
 
-        df["Identifier"] = df.apply(
-            lambda x: str(x["No PKB"]).strip()
-            if str(x.get("No PKB", "")).strip() not in ["", "-", "BELUM ADA", "nan", "None"]
-            else str(x.get("No Polisi", "")).strip(),
-            axis=1
-        )
+        # Deduplikasi aman: hanya gabungkan jika punya No PKB valid atau No Polisi valid
+        def make_identifier(row):
+            pkb = str(row.get("No PKB", "-")).strip()
+            nopol = str(row.get("No Polisi", "-")).strip()
+            if pkb not in ["", "-", "BELUM ADA"]:
+                return f"PKB_{pkb}"
+            if nopol not in ["", "-"]:
+                return f"NOPOL_{nopol}"
+            return f"ROW_{row.name}"
+
+        df["Identifier"] = df.apply(make_identifier, axis=1)
         df = df.drop_duplicates(subset=["Identifier"], keep="last").drop(columns=["Identifier"]).reset_index(drop=True)
 
         extra_cols = [c for c in df.columns if c not in STANDARD_COLUMNS]
         df = df[STANDARD_COLUMNS + extra_cols]
 
-        df["Tgl PKB"] = pd.to_datetime(df["Tgl PKB"], errors="coerce").dt.tz_localize(None)
+        # Hitung Umur PKB
+        parsed_tgl = pd.to_datetime(df["Tgl PKB"], errors="coerce").dt.tz_localize(None)
         now = pd.Timestamp.now().normalize()
-        df["Umur PKB (Hari)"] = (now - df["Tgl PKB"]).dt.days.fillna(0).astype(int)
-        df["Tgl PKB"] = df["Tgl PKB"].dt.strftime("%Y-%m-%d").fillna("-")
+        df["Umur PKB (Hari)"] = (now - parsed_tgl).dt.days.fillna(0).astype(int)
+        df["Tgl PKB"] = parsed_tgl.dt.strftime("%Y-%m-%d").fillna(df["Tgl PKB"])
 
         cols = list(df.columns)
         cols.remove("Umur PKB (Hari)")
@@ -365,10 +469,11 @@ def load_data():
         df["Progress (%)"] = df.apply(
             lambda r: hitung_progress(r["Kategori"], r["Status Pekerjaan"]), axis=1
         )
-        return build_action_links(df)
+        return build_action_links(df), diag
     except Exception as e:
+        diag["status"] = f"Exception: {e}"
         st.error(f"Kesalahan saat memuat data Cloud: {e}")
-        return empty_df
+        return empty_df, diag
 
 def prepare_df_for_sheet(df):
     computed = [
@@ -534,7 +639,7 @@ def send_auto_email_wa(nopol, status, catatan, kategori, nama_sa, foto_urls, spk
 # ==========================================
 # DASHBOARD UTAMA
 # ==========================================
-df = load_data()
+df, diag_info = load_data()
 st.session_state["df_data"] = df
 
 def style_umur_pkb(val):
@@ -572,13 +677,24 @@ dash_title = (
 )
 st.markdown(dash_title, unsafe_allow_html=True)
 
-df_wip = df[df["Status Pekerjaan"] != "Selesai"].copy() if not df.empty else df.copy()
-df_selesai = df[df["Status Pekerjaan"] == "Selesai"].copy() if not df.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
+if not df.empty:
+    status_series = df["Status Pekerjaan"].astype(str).str.strip().str.lower()
+    df_wip = df[status_series != "selesai"].copy()
+    df_selesai = df[status_series == "selesai"].copy()
+else:
+    df_wip = df.copy()
+    df_selesai = pd.DataFrame(columns=STANDARD_COLUMNS)
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Total Unit WIP", f"{len(df_wip)} Unit")
-m2.metric("Antrean GR", f"{len(df_wip[df_wip['Kategori'] == 'General Repair'])} Unit" if not df_wip.empty else "0 Unit")
-m3.metric("Antrean BR", f"{len(df_wip[df_wip['Kategori'] == 'Body Repair'])} Unit" if not df_wip.empty else "0 Unit")
+if not df_wip.empty:
+    kat_series = df_wip["Kategori"].astype(str).str.strip().str.lower()
+    gr_count = len(df_wip[kat_series.str.contains("general|gr", na=False)])
+    br_count = len(df_wip[kat_series.str.contains("body|br", na=False)])
+else:
+    gr_count, br_count = 0, 0
+m2.metric("Antrean GR", f"{gr_count} Unit")
+m3.metric("Antrean BR", f"{br_count} Unit")
 m4.metric("Unit Selesai", f"{len(df_selesai)} Unit")
 
 st.markdown("<hr style='border:1px solid #dcedc8;margin:10px 0 20px 0;'>", unsafe_allow_html=True)
@@ -597,7 +713,7 @@ def execute_form_logic(selected_nopol):
 
         with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
             opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
-            if kat_asli == "Body Repair":
+            if "body" in str(kat_asli).lower() or str(kat_asli).strip().upper() == "BR":
                 opsi_status = [
                     "Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul",
                     "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan",
@@ -645,7 +761,7 @@ def execute_form_logic(selected_nopol):
             )
 
             if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
-                if kat_asli == "Body Repair" and not uploaded and new_status != curr_status:
+                if ("body" in str(kat_asli).lower()) and not uploaded and new_status != curr_status:
                     st.error("Body Repair wajib unggah foto saat ubah status!")
                 else:
                     ok_up = True
@@ -699,8 +815,9 @@ def render_update_form(kategori_filter):
     if df_wip.empty:
         st.warning("Tidak ada data WIP aktif.")
         return
-    df_kat = df_wip[df_wip["Kategori"] == kategori_filter]
-    list_nopol = df_kat["No Polisi"].dropna().unique().tolist()
+    kw = "general|gr" if "General" in kategori_filter else "body|br"
+    df_kat = df_wip[df_wip["Kategori"].astype(str).str.lower().str.contains(kw, na=False)]
+    list_nopol = [n for n in df_kat["No Polisi"].dropna().unique().tolist() if n != "-"]
     metode = st.radio("Metode:", ["Pilih dari List", "Ketik Manual"], key=f"rad_{kategori_filter}", horizontal=True)
     if metode == "Pilih dari List":
         sel = st.selectbox("Pilih No Polisi", [""] + list_nopol)
@@ -734,8 +851,10 @@ if menu_pilihan == "📊 SEMUA WIP":
                 df_disp["No PKB"].astype(str).str.upper().str.contains(cari, na=False)
             )
             df_disp = df_disp[mask]
-        if f_kat != "Semua":
-            df_disp = df_disp[df_disp["Kategori"] == f_kat]
+        if f_kat == "General Repair":
+            df_disp = df_disp[df_disp["Kategori"].astype(str).str.lower().str.contains("general|gr", na=False)]
+        elif f_kat == "Body Repair":
+            df_disp = df_disp[df_disp["Kategori"].astype(str).str.lower().str.contains("body|br", na=False)]
         if f_sa != "Semua":
             df_disp = df_disp[df_disp["Nama SA"] == f_sa]
 
@@ -745,6 +864,16 @@ if menu_pilihan == "📊 SEMUA WIP":
         hide_index=True,
         column_config=get_col_configs(df_disp)
     )
+
+    with st.expander("🔍 Diagnostik Koneksi & Struktur Data Google Sheets", expanded=df.empty):
+        st.write(f"**Status Pembacaan:** {diag_info.get('status')}")
+        st.write(f"**Total Baris Terbaca:** {len(df)} baris (Mentah: {diag_info.get('raw_count')} baris)")
+        st.write(f"**Kolom Asli di Sheet:** `{diag_info.get('raw_cols')}`")
+        if df.empty:
+            st.warning(
+                "Jika kolom asli di sheet terlihat kosong atau salah nama sheet, pastikan fungsi `doGet(e)` "
+                "di Google Apps Script membaca sheet yang benar dan Web App sudah di-Deploy dengan akses **Anyone**."
+            )
 
 elif menu_pilihan == "🗄️ DATABASE SPREADSHEET":
     st.markdown("#### Editor Lengkap Database Google Sheets")
@@ -798,7 +927,7 @@ elif menu_pilihan == "📱 TAMPILAN MOBILE":
     if df_wip.empty:
         st.warning("Tidak ada data WIP aktif.")
     else:
-        list_nopol = df_wip["No Polisi"].dropna().unique().tolist()
+        list_nopol = [n for n in df_wip["No Polisi"].dropna().unique().tolist() if n != "-"]
         t1, t2 = st.tabs(["Pilih dari List", "Cari Manual"])
         with t1:
             n_list = st.selectbox("Cari No Polisi", [""] + list_nopol, key="mob_list")
@@ -808,7 +937,7 @@ elif menu_pilihan == "📱 TAMPILAN MOBILE":
 
 elif menu_pilihan == "🛠️ ANTREAN GR":
     st.markdown("#### Daftar Antrean General Repair (GR)")
-    df_gr = df_wip[df_wip["Kategori"] == "General Repair"] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
+    df_gr = df_wip[df_wip["Kategori"].astype(str).str.lower().str.contains("general|gr", na=False)] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
     st.dataframe(
         df_gr.style.map(style_umur_pkb, subset=["Umur PKB (Hari)"] if "Umur PKB (Hari)" in df_gr.columns else []),
         width="stretch", hide_index=True, column_config=get_col_configs(df_gr)
@@ -819,7 +948,7 @@ elif menu_pilihan == "📝 UPDATE GR":
 
 elif menu_pilihan == "🔨 ANTREAN BR":
     st.markdown("#### Daftar Antrean Body Repair (BR)")
-    df_br = df_wip[df_wip["Kategori"] == "Body Repair"] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
+    df_br = df_wip[df_wip["Kategori"].astype(str).str.lower().str.contains("body|br", na=False)] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
     st.dataframe(
         df_br.style.map(style_umur_pkb, subset=["Umur PKB (Hari)"] if "Umur PKB (Hari)" in df_br.columns else []),
         width="stretch", hide_index=True, column_config=get_col_configs(df_br)
