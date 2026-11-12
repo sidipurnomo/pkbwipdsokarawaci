@@ -21,7 +21,7 @@ except ImportError:
 SPREADSHEET_ID = "1SJCyPYrFiWSH1IPAD1wNpt1Sv-5UT4d3UneFaq-2HSI"
 
 DEFAULT_APPS_SCRIPT_URL = (
-    "https://script.google.com/macros/s/AKfycbzuzPE-tCYathHDFCRpRlYPMCSWNhUwmI5l-CMglkhVt0Ecu_bdkoxH_arCJq-8rVem/exec"
+    "https://script.google.com/macros/s/AKfycbwkp3-HoPrKTqc6nwfnUU-IltZt93yxHJa-yvVfNF7AnJKxBD5ILFyBdEUcOy0ZF0lQ/exec"
 )
 
 GREEN_API_HOST = "https://7107.api.greenapi.com"
