@@ -6,6 +6,7 @@ import requests
 import io
 import base64
 import json
+import urllib.parse
 from datetime import datetime
 
 try:
@@ -292,8 +293,13 @@ def hitung_progress(kategori, status):
 def post_to_apps_script(payload, timeout=30):
     try:
         headers = {"Content-Type": "text/plain;charset=utf-8"}
+        action_name = payload.get("action", "")
+        target_url = (
+            f"{APPS_SCRIPT_URL}?action={urllib.parse.quote(str(action_name))}"
+            if action_name else APPS_SCRIPT_URL
+        )
         res = requests.post(
-            APPS_SCRIPT_URL,
+            target_url,
             data=json.dumps(payload),
             headers=headers,
             timeout=timeout,
@@ -527,7 +533,6 @@ def update_row_in_sheet(nopol, updates, fallback_df, no_pkb="-"):
     if sukses:
         load_data.clear()
         return True
-    # Fallback sinkronisasi penuh ke Google Sheets jika action update_row tidak cocok
     return save_data(fallback_df)
 
 def compress_image(img_file, max_dim=1600, max_kb=1024):
@@ -556,16 +561,41 @@ def compress_image(img_file, max_dim=1600, max_kb=1024):
 def upload_foto_cloud(img_file):
     img_bytes, img_name, img_type = compress_image(img_file)
     b64_str = base64.b64encode(img_bytes).decode("utf-8")
-    payload = {
-        "action": "upload_image",
-        "filename": img_name,
-        "mimeType": img_type,
-        "data": b64_str
-    }
-    sukses, msg, data = post_to_apps_script(payload, timeout=60)
-    if sukses and data and data.get("url"):
-        return data.get("url")
-    st.error(f"Upload GDrive Gagal: {msg}")
+
+    candidate_actions = ["upload_image", "upload_foto", "upload", "upload_file", "uploadImage"]
+    last_msg = "Action tidak dikenali"
+
+    for act in candidate_actions:
+        payload = {
+            "action": act,
+            "filename": img_name,
+            "fileName": img_name,
+            "mimeType": img_type,
+            "data": b64_str,
+            "base64": b64_str,
+            "fileData": b64_str
+        }
+        sukses, msg, data = post_to_apps_script(payload, timeout=60)
+        if sukses and isinstance(data, dict):
+            file_url = (
+                data.get("url")
+                or data.get("fileUrl")
+                or data.get("link")
+                or data.get("webViewLink")
+            )
+            if not file_url and data.get("fileId"):
+                file_url = f"https://drive.google.com/uc?export=view&id={data.get('fileId')}"
+            if file_url:
+                return file_url
+
+        last_msg = msg
+        if "tidak dikenali" not in str(msg).lower() and "unknown action" not in str(msg).lower():
+            break
+
+    st.error(
+        f"Upload GDrive Gagal: {last_msg}. "
+        "Pastikan fungsi doPost(e) di Google Apps Script sudah mendukung action 'upload_image' dan sudah di-Deploy versi terbaru."
+    )
     return None
 
 # ==========================================
@@ -575,16 +605,13 @@ def resolve_sa_wa(nama_sa, kategori):
     """Mencari nomor WhatsApp SA berdasarkan kode lengkap maupun potongan nama SA."""
     sa_clean = str(nama_sa).strip().upper()
     if sa_clean and sa_clean != "-":
-        # 1. Cocok persis (misal: SAHRIM022761)
         if sa_clean in WA_SA_MAP:
             return [WA_SA_MAP[sa_clean]]
-        # 2. Cocok sebagian / awalan nama (misal: SAHRIM, MAULAN, BERLIA, MUHAMM)
         for kode_sa, no_wa in WA_SA_MAP.items():
             prefix = re.sub(r"\d+", "", kode_sa)
             if kode_sa in sa_clean or sa_clean in kode_sa or (prefix and prefix in sa_clean):
                 return [no_wa]
 
-    # 3. Fallback berdasarkan kategori jika SA belum terdaftar di WA_SA_MAP
     if kategori == "Body Repair":
         return list(WA_SA_BR_FALLBACK)
     return list(WA_SA_GR_FALLBACK)
