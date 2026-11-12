@@ -21,8 +21,7 @@ except ImportError:
 # KONFIGURASI CLOUD & API
 # ==========================================
 APPS_SCRIPT_URL = (
-    "https://script.google.com/macros/s/"
-    "AKfycbybnr3sAxBqsyghspXAZlyVOPq83ILSziZountsF2M7UUV_H-uqcn0iJUr5IBmO1v63/exec"
+    "https://script.google.com/macros/s/AKfycbxUx8EmqffU3Bn4reSWp4qkikVX8GeOE5DBVWYA3X5xMHzOAHrSq-Bux2UNNS5EGIvy/exec"
 )
 
 SENDER_EMAIL = "akunbodong@gmail.com"
