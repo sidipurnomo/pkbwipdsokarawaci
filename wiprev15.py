@@ -274,9 +274,10 @@ def post_to_apps_script(payload, timeout=45):
     target_url = f"{base_url}?{urllib.parse.urlencode(query_params)}" if query_params else base_url
 
     try:
+        # Kirim payload sebagai JSON terenkapsulasi parameter url agar aman dari pembatasan postData Google
         res = requests.post(
             target_url,
-            json=payload,
+            data={"payload": json.dumps(payload)},
             timeout=timeout,
             allow_redirects=True
         )
