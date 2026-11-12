@@ -19,7 +19,7 @@ except ImportError:
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 # Pastikan URL ini sudah diupdate jika Anda melakukan redeploy Apps Script baru.
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzROIr8Ng_Se2PVADfuFsYTNmIEeoI-qW7Re3mWq4l59naT3i2m2OmPRBI2Qq11z7kV/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxvifI7CBzfedTn-o49nKqVQHXQZHcIaj6nN2CkJc-hOMMVXlvUZ2KP5KkH58Kp-I/exec"
 
 # Konfigurasi Notifikasi Email
 SENDER_EMAIL = "akunbodong@gmail.com"
@@ -804,3 +804,5 @@ if not df.empty:
                 st.info("Belum ada kendaraan tamu yang ditambahkan secara manual.")
         else:
             st.info("Database masih kosong.")
+else:
+    st.info("Loading data atau database masih kosong.")
