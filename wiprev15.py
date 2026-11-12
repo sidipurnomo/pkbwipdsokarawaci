@@ -205,7 +205,6 @@ with st.sidebar:
         "Pilih Halaman:",
         [
             "📊 SEMUA WIP",
-            "🗄️ DATABASE SPREADSHEET",
             "📱 TAMPILAN MOBILE",
             "🛠️ ANTREAN GR",
             "📝 UPDATE GR",
@@ -873,53 +872,6 @@ if menu_pilihan == "📊 SEMUA WIP":
                 "Jika kolom asli di sheet terlihat kosong atau salah nama sheet, pastikan fungsi `doGet(e)` "
                 "di Google Apps Script membaca sheet yang benar dan Web App sudah di-Deploy dengan akses **Anyone**."
             )
-
-elif menu_pilihan == "🗄️ DATABASE SPREADSHEET":
-    st.markdown("#### Editor Lengkap Database Google Sheets")
-    st.info("Edit sel langsung di tabel, tambah baris di bawah, atau hapus baris, lalu klik Simpan.")
-    df_raw = prepare_df_for_sheet(df)
-
-    edited_df = st.data_editor(
-        df_raw,
-        num_rows="dynamic",
-        width="stretch",
-        hide_index=True,
-        key="editor_db_sheet",
-        column_config={
-            "Kategori": st.column_config.SelectboxColumn(
-                "Kategori", options=["General Repair", "Body Repair"], required=True
-            ),
-            "Status Pekerjaan": st.column_config.SelectboxColumn(
-                "Status Pekerjaan",
-                options=[
-                    "Menunggu Pekerjaan", "Sedang Dikerjakan", "Antrian Pekerjaan",
-                    "Bongkar", "Ketok / Las", "Dempul", "Epoxy",
-                    "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan",
-                    "Menunggu Part", "Quality Control", "Selesai"
-                ]
-            ),
-            "Status SPK Asuransi": st.column_config.SelectboxColumn(
-                "Status SPK Asuransi", options=["-", "Menunggu SPK", "SPK Turun", "Revisi SPK"]
-            ),
-            "Status Pembayaran OR": st.column_config.SelectboxColumn(
-                "Status Pembayaran OR", options=["-", "Belum Bayar OR", "Sudah Bayar OR"]
-            ),
-            "Kelengkapan Dokumen Asuransi": st.column_config.SelectboxColumn(
-                "Kelengkapan Dokumen Asuransi", options=["-", "Dokumen Belum Lengkap", "Dokumen Lengkap"]
-            ),
-        }
-    )
-
-    if st.button("💾 SIMPAN SEMUA PERUBAHAN KE GOOGLE SHEETS", width="stretch"):
-        if not edited_df.empty:
-            edited_df["No Polisi"] = edited_df["No Polisi"].fillna("-").astype(str).str.strip().str.upper()
-            edited_df["Tanggal Terakhir Diupdate"] = edited_df["Tanggal Terakhir Diupdate"].replace(
-                ["", "-", "None", "nan"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            )
-        with st.spinner("Menyimpan tabel ke Google Sheets..."):
-            if save_data(edited_df):
-                st.session_state["notif_sukses"] = "Seluruh perubahan tabel berhasil disimpan ke Google Sheets!"
-                st.rerun()
 
 elif menu_pilihan == "📱 TAMPILAN MOBILE":
     st.markdown("#### Menu Update Mobile (WIP)")
