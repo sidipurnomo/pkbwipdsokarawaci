@@ -38,6 +38,9 @@ WA_SA_MAP = {
     "MUHAMM086163": "628558825962",
 }
 
+# Daftar kode/nama SA khusus Body Repair (untuk deteksi otomatis jika kolom Kategori kosong)
+SA_BODY_REPAIR = ["SAHRIM022761", "SAHRIM"]
+
 WA_SA_BR_FALLBACK = ["6287774134574"]
 WA_SA_GR_FALLBACK = ["6287774134574"]
 WA_ADMIN_PART = ["6289630028860", "6285888874700"]
@@ -74,6 +77,14 @@ COLUMN_ALIASES = {
     "kategori": "Kategori",
     "kategori pekerjaan": "Kategori",
     "jenis pekerjaan": "Kategori",
+    "jenis service": "Kategori",
+    "jenis servis": "Kategori",
+    "tipe pekerjaan": "Kategori",
+    "tipe service": "Kategori",
+    "category": "Kategori",
+    "kat": "Kategori",
+    "divisi": "Kategori",
+    "bengkel": "Kategori",
     "status pekerjaan": "Status Pekerjaan",
     "status": "Status Pekerjaan",
     "progress": "Status Pekerjaan",
@@ -231,21 +242,55 @@ with st.sidebar:
 # ==========================================
 # FUNGSI CLOUD & PARSING SPREADSHEET
 # ==========================================
+def normalize_kategori(row):
+    """Menstandarkan nilai Kategori menjadi 'Body Repair' atau 'General Repair'."""
+    raw_kat = str(row.get("Kategori", "-")).strip().upper()
+    sa = str(row.get("Nama SA", "-")).strip().upper()
+    pkb = str(row.get("No PKB", "-")).strip().upper()
+
+    # 1. Cek langsung dari kolom Kategori jika sudah terisi
+    if raw_kat not in ["", "-", "NONE", "NAN", "NULL"]:
+        if (
+            "BODY" in raw_kat
+            or raw_kat in ["BR", "BP", "B/R", "B&P"]
+            or re.search(r"\b(BR|BP)\b", raw_kat)
+        ):
+            return "Body Repair"
+        if (
+            "GENERAL" in raw_kat
+            or raw_kat in ["GR", "PM", "G/R"]
+            or re.search(r"\b(GR|PM)\b", raw_kat)
+        ):
+            return "General Repair"
+
+    # 2. Fallback otomatis berdasarkan Nama SA (misal SAHRIM022761 = Body Repair)
+    if any(sa_br in sa for sa_br in SA_BODY_REPAIR):
+        return "Body Repair"
+
+    # 3. Fallback berdasarkan kode di No PKB (jika mengandung kode BR / GR)
+    if re.search(r"[-_/]BR[-_/]|^BR\d", pkb):
+        return "Body Repair"
+    if re.search(r"[-_/]GR[-_/]|^GR\d", pkb):
+        return "General Repair"
+
+    # 4. Default ke General Repair agar semua unit WIP terhitung akurat
+    return "General Repair"
+
 def hitung_progress(kategori, status):
     st_up = str(status).strip().lower()
     kat_up = str(kategori).strip().lower()
-    if st_up == "selesai":
+    if st_up in ["selesai", "done", "closed"]:
         return 100
     if st_up == "menunggu part":
         return 50
     if st_up == "quality control":
         return 90
-    if "general" in kat_up or kat_up == "gr":
+    if kat_up == "general repair" or kat_up == "gr":
         if st_up == "menunggu pekerjaan":
             return 10
         if st_up == "sedang dikerjakan":
             return 60
-    elif "body" in kat_up or kat_up == "br":
+    elif kat_up == "body repair" or kat_up == "br":
         br_steps = [
             "antrian pekerjaan", "bongkar", "ketok / las", "dempul",
             "epoxy", "pengecatan / oven", "poles", "perakitan / pemasangan"
@@ -300,7 +345,6 @@ def parse_raw_payload_to_df(data):
     if not data:
         return pd.DataFrame(), "Respons JSON kosong."
 
-    # 1. Jika dibungkus dictionary (misal {"data": [...]} atau {"values": [...]})
     if isinstance(data, dict):
         if data.get("status") == "error" or ("error" in data and not any(isinstance(v, list) for v in data.values())):
             return pd.DataFrame(), f"Error dari Apps Script: {data.get('error', data)}"
@@ -319,7 +363,6 @@ def parse_raw_payload_to_df(data):
     if not isinstance(data, list) or len(data) == 0:
         return pd.DataFrame(), "Data array kosong."
 
-    # 2. Jika berbentuk 2D Array (list of lists) dari getValues()
     if isinstance(data[0], list):
         header_idx = 0
         best_score = -1
@@ -351,7 +394,6 @@ def parse_raw_payload_to_df(data):
         ]
         return pd.DataFrame(padded_rows, columns=clean_headers), "OK (Format 2D Array)"
 
-    # 3. Jika berbentuk list of dicts
     if isinstance(data[0], dict):
         return pd.DataFrame(data), "OK (Format Object List)"
 
@@ -387,7 +429,7 @@ def build_action_links(df):
 @st.cache_data(ttl=15)
 def load_data():
     empty_df = pd.DataFrame(columns=STANDARD_COLUMNS)
-    diag = {"status": "Belum terhubung", "raw_cols": [], "raw_count": 0}
+    diag = {"status": "Belum terhubung", "raw_cols": [], "raw_count": 0, "raw_kat_sample": []}
     try:
         res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data", timeout=15, allow_redirects=True)
         if res.status_code != 200:
@@ -426,10 +468,13 @@ def load_data():
                 lambda v: "-" if v is None or str(v).strip() in ["", "None", "nan", "NaN", "null"] else str(v).strip()
             )
 
+        diag["raw_kat_sample"] = df["Kategori"].unique().tolist()[:10]
+
         df["No Polisi"] = df["No Polisi"].str.upper()
+        df["Nama SA"] = df["Nama SA"].str.upper()
 
         # Hapus hanya baris yang benar-benar kosong seluruh kolom utamanya
-        check_cols = ["No PKB", "No Polisi", "Nama Customer", "Tipe Kendaraan", "Kategori"]
+        check_cols = ["No PKB", "No Polisi", "Nama Customer", "Tipe Kendaraan", "Nama SA"]
         mask_has_data = df[check_cols].apply(lambda r: any(val != "-" for val in r), axis=1)
         df = df[mask_has_data].reset_index(drop=True)
 
@@ -437,11 +482,14 @@ def load_data():
             diag["status"] = "Semua baris kosong setelah pembersihan."
             return empty_df, diag
 
-        # Deduplikasi aman: hanya gabungkan jika punya No PKB valid atau No Polisi valid
+        # Normalisasi & deteksi otomatis Kategori ('Body Repair' vs 'General Repair')
+        df["Kategori"] = df.apply(normalize_kategori, axis=1)
+
+        # Deduplikasi aman
         def make_identifier(row):
-            pkb = str(row.get("No PKB", "-")).strip()
-            nopol = str(row.get("No Polisi", "-")).strip()
-            if pkb not in ["", "-", "BELUM ADA"]:
+            pkb = str(row.get("No PKB", "-")).strip().upper()
+            nopol = str(row.get("No Polisi", "-")).strip().upper()
+            if pkb not in ["", "-", "BELUM ADA", "0"]:
                 return f"PKB_{pkb}"
             if nopol not in ["", "-"]:
                 return f"NOPOL_{nopol}"
@@ -677,8 +725,9 @@ st.markdown(dash_title, unsafe_allow_html=True)
 
 if not df.empty:
     status_series = df["Status Pekerjaan"].astype(str).str.strip().str.lower()
-    df_wip = df[status_series != "selesai"].copy()
-    df_selesai = df[status_series == "selesai"].copy()
+    is_done = status_series.isin(["selesai", "done", "closed"])
+    df_wip = df[~is_done].copy()
+    df_selesai = df[is_done].copy()
 else:
     df_wip = df.copy()
     df_selesai = pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -686,9 +735,8 @@ else:
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Total Unit WIP", f"{len(df_wip)} Unit")
 if not df_wip.empty:
-    kat_series = df_wip["Kategori"].astype(str).str.strip().str.lower()
-    gr_count = len(df_wip[kat_series.str.contains("general|gr", na=False)])
-    br_count = len(df_wip[kat_series.str.contains("body|br", na=False)])
+    gr_count = int((df_wip["Kategori"] == "General Repair").sum())
+    br_count = int((df_wip["Kategori"] == "Body Repair").sum())
 else:
     gr_count, br_count = 0, 0
 m2.metric("Antrean GR", f"{gr_count} Unit")
@@ -706,12 +754,12 @@ def execute_form_logic(selected_nopol):
 
         st.success(
             f"**{row.get('Nama Customer', '-')}** | {selected_nopol} | "
-            f"SA: {nama_sa} | {row.get('Tipe Kendaraan', '-')}"
+            f"Kategori: **{kat_asli}** | SA: {nama_sa} | {row.get('Tipe Kendaraan', '-')}"
         )
 
         with st.form(f"form_update_{selected_nopol}", clear_on_submit=True):
             opsi_status = ["Menunggu Pekerjaan", "Sedang Dikerjakan", "Menunggu Part", "Quality Control", "Selesai"]
-            if "body" in str(kat_asli).lower() or str(kat_asli).strip().upper() == "BR":
+            if kat_asli == "Body Repair":
                 opsi_status = [
                     "Antrian Pekerjaan", "Bongkar", "Ketok / Las", "Dempul",
                     "Epoxy", "Pengecatan / Oven", "Poles", "Perakitan / Pemasangan",
@@ -759,7 +807,7 @@ def execute_form_logic(selected_nopol):
             )
 
             if st.form_submit_button("💾 UPDATE DATA", width="stretch"):
-                if ("body" in str(kat_asli).lower()) and not uploaded and new_status != curr_status:
+                if kat_asli == "Body Repair" and not uploaded and new_status != curr_status:
                     st.error("Body Repair wajib unggah foto saat ubah status!")
                 else:
                     ok_up = True
@@ -776,6 +824,7 @@ def execute_form_logic(selected_nopol):
                     if ok_up:
                         foto_final = ", ".join(new_links) if new_links else foto_lama
                         updates = {
+                            "Kategori": kat_asli,
                             "Status Pekerjaan": new_status,
                             "Keterangan Lanjutan": new_ket,
                             "Status SPK Asuransi": new_spk,
@@ -813,8 +862,10 @@ def render_update_form(kategori_filter):
     if df_wip.empty:
         st.warning("Tidak ada data WIP aktif.")
         return
-    kw = "general|gr" if "General" in kategori_filter else "body|br"
-    df_kat = df_wip[df_wip["Kategori"].astype(str).str.lower().str.contains(kw, na=False)]
+    df_kat = df_wip[df_wip["Kategori"] == kategori_filter]
+    if df_kat.empty:
+        st.info(f"Belum ada kendaraan aktif pada kategori {kategori_filter}.")
+        return
     list_nopol = [n for n in df_kat["No Polisi"].dropna().unique().tolist() if n != "-"]
     metode = st.radio("Metode:", ["Pilih dari List", "Ketik Manual"], key=f"rad_{kategori_filter}", horizontal=True)
     if metode == "Pilih dari List":
@@ -849,10 +900,8 @@ if menu_pilihan == "📊 SEMUA WIP":
                 df_disp["No PKB"].astype(str).str.upper().str.contains(cari, na=False)
             )
             df_disp = df_disp[mask]
-        if f_kat == "General Repair":
-            df_disp = df_disp[df_disp["Kategori"].astype(str).str.lower().str.contains("general|gr", na=False)]
-        elif f_kat == "Body Repair":
-            df_disp = df_disp[df_disp["Kategori"].astype(str).str.lower().str.contains("body|br", na=False)]
+        if f_kat != "Semua":
+            df_disp = df_disp[df_disp["Kategori"] == f_kat]
         if f_sa != "Semua":
             df_disp = df_disp[df_disp["Nama SA"] == f_sa]
 
@@ -867,6 +916,8 @@ if menu_pilihan == "📊 SEMUA WIP":
         st.write(f"**Status Pembacaan:** {diag_info.get('status')}")
         st.write(f"**Total Baris Terbaca:** {len(df)} baris (Mentah: {diag_info.get('raw_count')} baris)")
         st.write(f"**Kolom Asli di Sheet:** `{diag_info.get('raw_cols')}`")
+        st.write(f"**Nilai Mentah Kolom Kategori di Sheet:** `{diag_info.get('raw_kat_sample')}`")
+        st.write(f"**Hasil Normalisasi WIP:** General Repair = `{gr_count}` unit | Body Repair = `{br_count}` unit")
         if df.empty:
             st.warning(
                 "Jika kolom asli di sheet terlihat kosong atau salah nama sheet, pastikan fungsi `doGet(e)` "
@@ -888,7 +939,7 @@ elif menu_pilihan == "📱 TAMPILAN MOBILE":
 
 elif menu_pilihan == "🛠️ ANTREAN GR":
     st.markdown("#### Daftar Antrean General Repair (GR)")
-    df_gr = df_wip[df_wip["Kategori"].astype(str).str.lower().str.contains("general|gr", na=False)] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
+    df_gr = df_wip[df_wip["Kategori"] == "General Repair"] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
     st.dataframe(
         df_gr.style.map(style_umur_pkb, subset=["Umur PKB (Hari)"] if "Umur PKB (Hari)" in df_gr.columns else []),
         width="stretch", hide_index=True, column_config=get_col_configs(df_gr)
@@ -899,7 +950,7 @@ elif menu_pilihan == "📝 UPDATE GR":
 
 elif menu_pilihan == "🔨 ANTREAN BR":
     st.markdown("#### Daftar Antrean Body Repair (BR)")
-    df_br = df_wip[df_wip["Kategori"].astype(str).str.lower().str.contains("body|br", na=False)] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
+    df_br = df_wip[df_wip["Kategori"] == "Body Repair"] if not df_wip.empty else pd.DataFrame(columns=STANDARD_COLUMNS)
     st.dataframe(
         df_br.style.map(style_umur_pkb, subset=["Umur PKB (Hari)"] if "Umur PKB (Hari)" in df_br.columns else []),
         width="stretch", hide_index=True, column_config=get_col_configs(df_br)
@@ -979,5 +1030,3 @@ elif menu_pilihan == "➕ TAMBAH MOBIL TAMU":
         "Tgl PKB", "Tanggal Terakhir Diupdate"
     ]
     st.dataframe(df_tamu[[c for c in kolom_tampil if c in df_tamu.columns]], width="stretch", hide_index=True)
-
-# === AKHIR FILE wiprev15.py ===
