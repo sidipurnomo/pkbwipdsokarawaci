@@ -54,17 +54,20 @@ COLUMN_ALIASES = {
     "no wo": "No PKB",
     "wo": "No PKB",
     "tipe kendaraan": "Tipe Kendaraan",
+    "type kendaraan": "Tipe Kendaraan",
     "tipe": "Tipe Kendaraan",
     "type": "Tipe Kendaraan",
     "model": "Tipe Kendaraan",
     "kendaraan": "Tipe Kendaraan",
     "no polisi": "No Polisi",
     "nomor polisi": "No Polisi",
+    "nopol kendaraan": "No Polisi",
     "no pol": "No Polisi",
     "nopol": "No Polisi",
     "plat": "No Polisi",
     "plat nomor": "No Polisi",
     "nama customer": "Nama Customer",
+    "customer name": "Nama Customer",
     "customer": "Nama Customer",
     "nama pelanggan": "Nama Customer",
     "pelanggan": "Nama Customer",
@@ -74,6 +77,8 @@ COLUMN_ALIASES = {
     "jenis pekerjaan": "Kategori",
     "jenis service": "Kategori",
     "jenis servis": "Kategori",
+    "jenis gr br": "Kategori",
+    "jenis": "Kategori",
     "tipe pekerjaan": "Kategori",
     "tipe service": "Kategori",
     "category": "Kategori",
@@ -81,20 +86,26 @@ COLUMN_ALIASES = {
     "divisi": "Kategori",
     "bengkel": "Kategori",
     "status pekerjaan": "Status Pekerjaan",
+    "status progress": "Status Pekerjaan",
+    "status unit": "Status Pekerjaan",
     "status": "Status Pekerjaan",
     "progress": "Status Pekerjaan",
     "nama sa": "Nama SA",
     "sa": "Nama SA",
     "service advisor": "Nama SA",
+    "advisor": "Nama SA",
     "tgl pkb": "Tgl PKB",
     "tanggal pkb": "Tgl PKB",
     "tgl masuk": "Tgl PKB",
+    "tanggal masuk": "Tgl PKB",
     "tanggal": "Tgl PKB",
+    "tgl": "Tgl PKB",
     "tanggal terakhir diupdate": "Tanggal Terakhir Diupdate",
     "last update": "Tanggal Terakhir Diupdate",
     "updated at": "Tanggal Terakhir Diupdate",
     "keterangan lanjutan": "Keterangan Lanjutan",
     "keterangan": "Keterangan Lanjutan",
+    "ket": "Keterangan Lanjutan",
     "catatan": "Keterangan Lanjutan",
     "keluhan": "Keterangan Lanjutan",
     "foto pkb": "Foto PKB",
@@ -129,6 +140,9 @@ if "apps_script_url" not in st.session_state:
         st.session_state["apps_script_url"] = st.secrets.get("APPS_SCRIPT_URL", DEFAULT_APPS_SCRIPT_URL)
     except Exception:
         st.session_state["apps_script_url"] = DEFAULT_APPS_SCRIPT_URL
+
+if "selected_sheet_tab" not in st.session_state:
+    st.session_state["selected_sheet_tab"] = "DATABASE"
 
 def get_apps_script_url():
     return str(st.session_state.get("apps_script_url", DEFAULT_APPS_SCRIPT_URL)).strip()
@@ -219,8 +233,16 @@ def hitung_progress(kategori, status):
         return 100
     if st_up == "menunggu part":
         return 50
-    if st_up == "quality control":
+    if st_up in ["quality control", "comp"]:
         return 90
+    if st_up == "rel":
+        return 85
+    if st_up == "conf":
+        return 70
+    if st_up == "pcon":
+        return 50
+    if st_up == "wip":
+        return 30
     if kat_up in ["general repair", "gr"]:
         if st_up == "menunggu pekerjaan":
             return 10
@@ -237,13 +259,18 @@ def hitung_progress(kategori, status):
 
 def post_to_apps_script(payload, timeout=35):
     base_url = get_apps_script_url()
+    sheet_tab = str(st.session_state.get("selected_sheet_tab", "")).strip()
+    if sheet_tab and "sheetName" not in payload:
+        payload["sheetName"] = sheet_tab
     try:
         headers = {"Content-Type": "text/plain;charset=utf-8"}
         action_name = payload.get("action", "")
-        target_url = (
-            f"{base_url}?action={urllib.parse.quote(str(action_name))}"
-            if action_name else base_url
-        )
+        query_params = {}
+        if action_name:
+            query_params["action"] = str(action_name)
+        if sheet_tab:
+            query_params["sheet"] = sheet_tab
+        target_url = f"{base_url}?{urllib.parse.urlencode(query_params)}" if query_params else base_url
         res = requests.post(
             target_url,
             data=json.dumps(payload),
@@ -273,39 +300,83 @@ def post_to_apps_script(payload, timeout=35):
     return False, err_msg, res_json
 
 def clean_header_key(col_name):
-    return re.sub(r"[\s._\-/]+", " ", str(col_name).strip().lower()).strip()
+    return re.sub(r"[\s._\-/()]+", " ", str(col_name).strip().lower()).strip()
+
+def _fuzzy_map_column(key):
+    if key in COLUMN_ALIASES:
+        return COLUMN_ALIASES[key]
+    if "pkb" in key or re.search(r"\bwo\b", key):
+        return "No PKB"
+    if "polisi" in key or "nopol" in key or "plat" in key:
+        return "No Polisi"
+    if "customer" in key or "cust" in key or "pelanggan" in key or "pemilik" in key:
+        return "Nama Customer"
+    if "tipe" in key or "type" in key or "kendaraan" in key or "model" in key:
+        return "Tipe Kendaraan"
+    if re.search(r"\bsa\b", key) or "advisor" in key:
+        return "Nama SA"
+    if "kategori" in key or "jenis" in key or "divisi" in key:
+        return "Kategori"
+    if "status" in key or "progress" in key:
+        if "spk" in key:
+            return "Status SPK Asuransi"
+        if "or" in key:
+            return "Status Pembayaran OR"
+        return "Status Pekerjaan"
+    if "tgl" in key or "tanggal" in key:
+        if "update" in key:
+            return "Tanggal Terakhir Diupdate"
+        return "Tgl PKB"
+    if "foto" in key or "gambar" in key or "dokumentasi" in key:
+        return "Foto PKB"
+    if "keterangan" in key or "catatan" in key or "keluhan" in key:
+        return "Keterangan Lanjutan"
+    return None
 
 def normalize_columns(df):
     rename_map = {}
     used_targets = set()
     for col in df.columns:
         key = clean_header_key(col)
-        if key in COLUMN_ALIASES:
-            target = COLUMN_ALIASES[key]
-            if target not in used_targets:
-                rename_map[col] = target
-                used_targets.add(target)
+        target = _fuzzy_map_column(key)
+        if target and target not in used_targets:
+            rename_map[col] = target
+            used_targets.add(target)
     return df.rename(columns=rename_map) if rename_map else df
 
-def parse_raw_payload_to_df(data):
-    """Mengubah berbagai struktur JSON dari Apps Script menjadi DataFrame."""
+def _is_table_list(val):
+    if not isinstance(val, list) or len(val) == 0:
+        return False
+    return isinstance(val[0], (list, dict))
+
+def parse_raw_payload_to_df(data, preferred_tab="DATABASE"):
+    """Mengubah berbagai struktur JSON dari Apps Script menjadi DataFrame secara aman."""
     if not data:
         return pd.DataFrame(), "Respons JSON kosong."
 
     if isinstance(data, dict):
-        if data.get("status") == "error" or ("error" in data and not any(isinstance(v, list) for v in data.values())):
+        if data.get("status") == "error" or ("error" in data and not any(_is_table_list(v) for v in data.values())):
             return pd.DataFrame(), f"Error dari Apps Script: {data.get('error', data)}"
+
         extracted_list = None
-        for key in ["data", "values", "records", "rows", "result", "items"]:
-            if key in data and isinstance(data[key], list):
+        priority_keys = [
+            preferred_tab, preferred_tab.upper(), preferred_tab.lower(),
+            "DATABASE", "Data_WIP", "data", "values", "records", "rows", "result", "items"
+        ]
+        for key in priority_keys:
+            if key in data and _is_table_list(data[key]):
                 extracted_list = data[key]
                 break
+
+        # Jika belum ketemu, pilih list tabel (2D list / list of dict) yang paling banyak barisnya
         if extracted_list is None:
-            for val in data.values():
-                if isinstance(val, list):
-                    extracted_list = val
-                    break
-        data = extracted_list if extracted_list is not None else [data]
+            table_candidates = [v for v in data.values() if _is_table_list(v)]
+            if table_candidates:
+                extracted_list = max(table_candidates, key=len)
+
+        if extracted_list is None:
+            return pd.DataFrame(), f"Tidak ditemukan array data tabel di dalam JSON (keys: {list(data.keys())})."
+        data = extracted_list
 
     if not isinstance(data, list) or len(data) == 0:
         return pd.DataFrame(), "Data array kosong di Google Sheets."
@@ -313,9 +384,9 @@ def parse_raw_payload_to_df(data):
     if isinstance(data[0], list):
         header_idx = 0
         best_score = -1
-        for i in range(min(5, len(data))):
+        for i in range(min(20, len(data))):
             row_keys = [clean_header_key(cell) for cell in data[i]]
-            score = sum(1 for k in row_keys if k in COLUMN_ALIASES)
+            score = sum(1 for k in row_keys if _fuzzy_map_column(k) is not None)
             if score > best_score:
                 best_score = score
                 header_idx = i
@@ -334,12 +405,12 @@ def parse_raw_payload_to_df(data):
 
         rows = data[header_idx + 1:]
         if not rows:
-            return pd.DataFrame(columns=clean_headers), "Header ditemukan, namun belum ada baris data di bawahnya."
+            return pd.DataFrame(columns=clean_headers), f"Header ditemukan di baris {header_idx + 1}, namun belum ada baris data di bawahnya."
         padded_rows = [
             r[:len(clean_headers)] + [""] * max(0, len(clean_headers) - len(r))
             for r in rows
         ]
-        return pd.DataFrame(padded_rows, columns=clean_headers), "OK (Format 2D Array)"
+        return pd.DataFrame(padded_rows, columns=clean_headers), f"OK (Header baris {header_idx + 1})"
 
     if isinstance(data[0], dict):
         return pd.DataFrame(data), "OK (Format Object List)"
@@ -347,18 +418,25 @@ def parse_raw_payload_to_df(data):
     return pd.DataFrame(), f"Format data tidak dikenali: {type(data[0])}"
 
 @st.cache_data(ttl=15)
-def load_data(script_url):
+def load_data(script_url, sheet_tab="DATABASE"):
     empty_df = pd.DataFrame(columns=STANDARD_COLUMNS)
     diag = {
         "status": "Belum terhubung",
         "version": "-",
-        "sheet_name": "-",
+        "sheet_name": sheet_tab or "-",
+        "all_sheets": [],
         "raw_cols": [],
         "raw_count": 0,
-        "raw_kat_sample": []
+        "raw_kat_sample": [],
+        "raw_preview": ""
     }
     try:
-        res = requests.get(f"{script_url}?action=get_data", timeout=15, allow_redirects=True)
+        params = {"action": "get_data"}
+        if sheet_tab:
+            params["sheet"] = sheet_tab
+        res = requests.get(f"{script_url}?{urllib.parse.urlencode(params)}", timeout=15, allow_redirects=True)
+        diag["raw_preview"] = res.text[:500]
+
         if res.status_code != 200:
             diag["status"] = f"HTTP Error {res.status_code}"
             st.error(f"Gagal koneksi Cloud. HTTP: {res.status_code}")
@@ -381,9 +459,13 @@ def load_data(script_url):
 
         if isinstance(raw_json, dict):
             diag["version"] = raw_json.get("version", "-")
-            diag["sheet_name"] = raw_json.get("sheetName", "-")
+            diag["sheet_name"] = raw_json.get("sheetName", sheet_tab or "-")
+            if isinstance(raw_json.get("allSheets"), list):
+                diag["all_sheets"] = raw_json["allSheets"]
+            elif isinstance(raw_json.get("sheets"), list):
+                diag["all_sheets"] = raw_json["sheets"]
 
-        df_raw, parse_msg = parse_raw_payload_to_df(raw_json)
+        df_raw, parse_msg = parse_raw_payload_to_df(raw_json, preferred_tab=sheet_tab or "DATABASE")
         diag["status"] = parse_msg
         diag["raw_cols"] = list(df_raw.columns) if not df_raw.empty else []
         diag["raw_count"] = len(df_raw)
@@ -411,7 +493,12 @@ def load_data(script_url):
 
         check_cols = ["No PKB", "No Polisi", "Nama Customer", "Tipe Kendaraan", "Nama SA"]
         mask_has_data = df[check_cols].apply(lambda r: any(val != "-" for val in r), axis=1)
-        df = df[mask_has_data].reset_index(drop=True)
+        if mask_has_data.any():
+            df = df[mask_has_data].reset_index(drop=True)
+        else:
+            # Fallback jika nama header berbeda jauh namun baris memiliki isi di kolom lain
+            mask_any = df.apply(lambda r: any(val != "-" for val in r), axis=1)
+            df = df[mask_any].reset_index(drop=True)
 
         if df.empty:
             diag["status"] = "Semua baris kosong setelah pembersihan."
@@ -434,7 +521,8 @@ def load_data(script_url):
         extra_cols = [c for c in df.columns if c not in STANDARD_COLUMNS]
         df = df[STANDARD_COLUMNS + extra_cols]
 
-        parsed_tgl = pd.to_datetime(df["Tgl PKB"], errors="coerce").dt.tz_localize(None)
+        tgl_clean = df["Tgl PKB"].astype(str).str.replace(".", "/", regex=False)
+        parsed_tgl = pd.to_datetime(tgl_clean, dayfirst=True, errors="coerce").dt.tz_localize(None)
         now = pd.Timestamp.now().normalize()
         df["Umur PKB (Hari)"] = (now - parsed_tgl).dt.days.fillna(0).astype(int)
         df["Tgl PKB"] = parsed_tgl.dt.strftime("%Y-%m-%d").fillna(df["Tgl PKB"])
@@ -694,7 +782,7 @@ with st.sidebar:
 # ==========================================
 # DASHBOARD UTAMA
 # ==========================================
-df, diag_info = load_data(get_apps_script_url())
+df, diag_info = load_data(get_apps_script_url(), st.session_state.get("selected_sheet_tab", "DATABASE"))
 st.session_state["df_data"] = df
 
 if "notif_sukses" in st.session_state:
@@ -741,7 +829,6 @@ def execute_form_logic(selected_nopol):
         st.error("Database kosong atau belum terhubung ke Google Sheets.")
         return
 
-    # Prioritaskan unit di WIP aktif; jika tidak ada, cek riwayat selesai
     match_wip = df_wip[df_wip["No Polisi"] == selected_nopol] if not df_wip.empty else pd.DataFrame()
     match_all = df[df["No Polisi"] == selected_nopol]
 
@@ -894,6 +981,10 @@ def render_update_form(kategori_filter):
 # ==========================================
 if menu_pilihan == "📊 SEMUA WIP":
     st.markdown("#### Database WIP Aktif (Real-Time Google Sheets)")
+
+    if not df.empty and df_wip.empty and not df_selesai.empty:
+        st.info(f"Semua {len(df_selesai)} unit di sheet berstatus 'Selesai'. Buka menu **✅ RIWAYAT SELESAI** untuk melihatnya.")
+
     f1, f2, f3 = st.columns([2, 1, 1])
     with f1:
         cari = st.text_input("Cari No Polisi / Customer / No PKB:").strip().upper()
@@ -927,12 +1018,30 @@ if menu_pilihan == "📊 SEMUA WIP":
         column_config=get_col_configs(df_disp)
     )
 
-    with st.expander("🔍 Diagnostik Koneksi & Pengaturan URL Apps Script", expanded=df.empty):
+    with st.expander("🔍 Diagnostik Koneksi & Pengaturan Tab / URL Apps Script", expanded=df.empty):
         st.write(f"**Status Pembacaan:** {diag_info.get('status')}")
-        st.write(f"**Versi Apps Script Aktif:** `{diag_info.get('version')}` | **Nama Sheet:** `{diag_info.get('sheet_name')}`")
+        st.write(f"**Versi Apps Script Aktif:** `{diag_info.get('version')}` | **Tab Sheet Terbaca:** `{diag_info.get('sheet_name')}`")
         st.write(f"**Total Baris Terbaca:** {len(df)} baris (Mentah: {diag_info.get('raw_count')} baris)")
         st.write(f"**Kolom Asli di Sheet:** `{diag_info.get('raw_cols')}`")
         st.write(f"**Nilai Mentah Kolom Kategori di Sheet:** `{diag_info.get('raw_kat_sample')}`")
+
+        if diag_info.get("raw_preview"):
+            st.caption("Cuplikan Respons Mentah dari Apps Script:")
+            st.code(diag_info["raw_preview"], language="json")
+
+        c_tab1, c_tab2 = st.columns([3, 1])
+        detected_sheets = diag_info.get("all_sheets") or ["DATABASE", "Data_WIP", "SELESAI", "UNIT TAMU"]
+        curr_tab = st.session_state.get("selected_sheet_tab", "DATABASE")
+        if curr_tab not in detected_sheets:
+            detected_sheets = [curr_tab] + detected_sheets
+        with c_tab1:
+            picked_tab = st.selectbox("Pilih Tab Sheet yang Dibaca:", detected_sheets, index=detected_sheets.index(curr_tab))
+        with c_tab2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("📂 Muat Tab Ini", use_container_width=True):
+                st.session_state["selected_sheet_tab"] = picked_tab
+                load_data.clear()
+                st.rerun()
 
         st.markdown("---")
         new_url_input = st.text_input(
