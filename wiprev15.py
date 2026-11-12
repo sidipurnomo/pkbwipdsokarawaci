@@ -19,7 +19,7 @@ except ImportError:
 # KONFIGURASI CLOUD & API
 # ==========================================
 APPS_SCRIPT_URL = (
-    "https://script.google.com/macros/s/AKfycbxgmkfPVHP-Xu_9CB9-_FjIZxv1gw3cS913Q9-x3ODC2EJnMIV-9pzsEnMxz-L9q32E/exec"
+    "https://script.google.com/macros/s/AKfycbx7i3F3hsu39DmOg-aYzqzeVHIhmkPOqWznG8NAOi7kCTw5g50t93FSdaI8uPkKx03q/exec"
 )
 
 GREEN_API_HOST = "https://7107.api.greenapi.com"
