@@ -19,7 +19,7 @@ except ImportError:
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 # Pastikan URL ini sudah diupdate jika Anda melakukan redeploy Apps Script baru.
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxd_4Pie_vm_2enVOmYgbUSMn64OQDMFD3Rm7bVqpULg7cAgit-jNURtFKkrOKkw3dD/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxvifI7CBzfedTn-o49nKqVQHXQZHcIaj6nN2CkJc-hOMMVXlvUZ2KP5KkH58Kp-I/exec"
 
 # Konfigurasi Notifikasi Email
 SENDER_EMAIL = "akunbodong@gmail.com"
@@ -193,7 +193,8 @@ def hitung_progress(kategori, status):
 @st.cache_data(ttl=15) 
 def load_data():
     try:
-        response = requests.get(APPS_SCRIPT_URL, timeout=15)
+        # Gunakan parameter ?action=get_data agar Apps Script tahu kita mau mengambil data
+        response = requests.get(APPS_SCRIPT_URL + "?action=get_data", timeout=15)
         if response.status_code != 200:
             st.error(f"Gagal koneksi ke Cloud. HTTP Code: {response.status_code}")
             return pd.DataFrame()
@@ -201,7 +202,10 @@ def load_data():
         try:
             data = response.json()
         except ValueError:
-            st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON.")
+            # st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON.")
+            # return pd.DataFrame()
+            # KALO ERROR JSON SAAT GET DATA, KITA CEK APAKAH INI KARENA URL LAMA
+            st.error("❌ Respons GET tidak valid. Pastikan Apps Script Web App menangani GET request dengan benar, atau gunakan link Web App yang telah di-deploy ulang.")
             return pd.DataFrame()
 
         if not data: return pd.DataFrame()
@@ -295,7 +299,13 @@ def get_merged_data():
                 try:
                     df_to_save = new_df.drop(columns=['Umur PKB (Hari)', 'Progress (%)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
                     df_to_save = df_to_save.fillna("-").astype(str)
-                    requests.post(APPS_SCRIPT_URL, json=[df_to_save.columns.tolist()] + df_to_save.values.tolist(), timeout=10)
+                    
+                    # Tambahkan payload spesifik untuk metode post (untuk bedain dengan aksi upload foto)
+                    payload_save = {
+                        "action": "save_data",
+                        "data": [df_to_save.columns.tolist()] + df_to_save.values.tolist()
+                    }
+                    requests.post(APPS_SCRIPT_URL, json=payload_save, timeout=10)
                 except:
                     pass
 
@@ -304,10 +314,18 @@ def get_merged_data():
 def save_data(df):
     df_to_save = df.drop(columns=['Umur PKB (Hari)', 'Progress (%)', 'Aksi WA Part 1', 'Aksi WA Part 2', 'Aksi Email Part', 'Aksi WA Part'], errors='ignore')
     df_to_save = df_to_save.fillna("-").astype(str)
-    data_list = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
+    
+    # Karena Apps Script menangani POST dengan body JSON, 
+    # kita harus memberi tahu tipe action-nya agar tidak bentrok dengan action upload image
+    payload_save = {
+        "action": "save_data",
+        "data": [df_to_save.columns.tolist()] + df_to_save.values.tolist()
+    }
     
     try:
-        response = requests.post(APPS_SCRIPT_URL, json=data_list, timeout=30)
+        # URL Google Apps Script dialihkan. Jadi requests butuh ikuti pengalihan
+        # Parameter POST-nya harus ditangani dengan benar
+        response = requests.post(APPS_SCRIPT_URL, json=payload_save, timeout=30)
     except requests.exceptions.RequestException as e:
         st.error(f"❌ Error koneksi ke Google Sheets: {e}")
         return False
@@ -362,23 +380,24 @@ def upload_foto_cloud(img_file):
     }
 
     try:
-        res = requests.post(APPS_SCRIPT_URL, json=payload, timeout=60)
+        # Jika menggunakan API Google Apps script, dia akan di redirect. allow_redirects diset
+        res = requests.post(APPS_SCRIPT_URL, json=payload, timeout=60, allow_redirects=True)
     except requests.exceptions.RequestException as e:
         st.error(f"❌ Gagal terhubung ke server Apps Script: {e}")
         return None
 
-    # Cek apakah respons kosong (indikasi kuat Apps Script belum di-deploy ulang)
-    if not res.text.strip():
-        st.error("❌ Google Apps Script mengembalikan respons KOSONG.")
-        st.warning("💡 **TINDAKAN WAJIB:** Anda perlu memperbarui Web App di Apps Script: Buka Google Apps Script -> Klik tombol biru **Deploy (Penerapan)** -> **Manage Deployments (Kelola Penerapan)** -> Klik ikon Pensil (Edit) -> Pada kolom **Version**, WAJIB pilih **New version (Versi baru)** -> Lalu tekan **Deploy**.")
+    # Cek apakah respons HTML (login page dari Google)
+    if "<!DOCTYPE html>" in res.text:
+        st.error("❌ Akses ke Google Apps Script DITOLAK.")
+        st.warning("💡 **SOLUSI:** Anda harus melakukan **Deploy ulang** Web App di Google Apps Script dan pastikan 'Who has access' (Siapa yang memiliki akses) diatur ke **'Anyone' (Siapa saja)**. Saat ini Apps Script Anda hanya bisa diakses jika Anda sedang login ke akun Google tertentu (biasanya 'Only myself'), sehingga Streamlit yang ada di server berbeda ditolak masuk.")
         return None
 
     try:
         data = res.json()
     except ValueError:
-        st.error(f"❌ Respons tidak valid dari Apps Script (Format JSON salah).")
-        st.code(res.text[:300], language="html")
-        st.warning("💡 **TINDAKAN WAJIB:** Anda perlu memperbarui Web App di Apps Script: Buka Google Apps Script -> Klik tombol biru **Deploy (Penerapan)** -> **Manage Deployments (Kelola Penerapan)** -> Klik ikon Pensil (Edit) -> Pada kolom **Version**, WAJIB pilih **New version (Versi baru)** -> Lalu tekan **Deploy**.")
+        st.error(f"❌ Respons tidak valid dari Apps Script (Bukan format JSON yang benar).")
+        # st.code(res.text[:300], language="html")
+        st.warning("💡 **TINDAKAN:** Apps Script tidak merespons dalam format JSON (bisa jadi file tidak ditemukan atau versi script lama sedang berjalan). Pastikan `Code.gs` telah diperbarui untuk mendukung payload upload_image dan Anda telah menekan 'Deploy' -> 'New version'.")
         return None
 
     if res.status_code == 200 and data.get('success'):
