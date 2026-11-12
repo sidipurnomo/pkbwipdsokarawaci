@@ -19,7 +19,7 @@ except ImportError:
 # 🌟 KONFIGURASI CLOUD & API
 # ==========================================
 # Pastikan URL ini sudah diupdate jika Anda melakukan redeploy Apps Script baru.
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFpr2FIwRL4pHdepJLDgUnrSbW-HWXRBg2VMZraTkfELHclq-OxAzs0-HfC94YruuL/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybnr3sAxBqsyghspXAZlyVOPq83ILSziZountsF2M7UUV_H-uqcn0iJUr5IBmO1v63/exec"
 
 # Konfigurasi Notifikasi Email
 SENDER_EMAIL = "akunbodong@gmail.com"
@@ -193,7 +193,6 @@ def hitung_progress(kategori, status):
 @st.cache_data(ttl=15) 
 def load_data():
     try:
-        # Gunakan parameter ?action=get_data agar Apps Script tahu kita mau mengambil data
         response = requests.get(APPS_SCRIPT_URL + "?action=get_data", timeout=15)
         if response.status_code != 200:
             st.error(f"Gagal koneksi ke Cloud. HTTP Code: {response.status_code}")
@@ -202,15 +201,25 @@ def load_data():
         try:
             data = response.json()
         except ValueError:
-            # st.error("❌ Gagal membaca data dari Google Sheets. Server mengembalikan bukan format JSON.")
-            # return pd.DataFrame()
-            # KALO ERROR JSON SAAT GET DATA, KITA CEK APAKAH INI KARENA URL LAMA
-            st.error("❌ Respons GET tidak valid. Pastikan Apps Script Web App menangani GET request dengan benar, atau gunakan link Web App yang telah di-deploy ulang.")
+            st.error("❌ Respons GET tidak valid. Pastikan Apps Script Web App menangani GET request dengan benar.")
             return pd.DataFrame()
 
-        if not data: return pd.DataFrame()
+        # ✅ PERBAIKAN: Jika data kosong atau berupa scalar/dictionary tunggal
+        if not data: 
+            return pd.DataFrame()
         
-        df = pd.DataFrame(data)
+        # Pandas akan error "If using all scalar values..." jika kita memasukkan dictionary tunggal tanpa list ke DataFrame()
+        if isinstance(data, dict):
+            # Jika Google merespons dengan dictionary (misal: {"status": "success", "data": [...]})
+            if 'data' in data and isinstance(data['data'], list):
+                df = pd.DataFrame(data['data'])
+            else:
+                df = pd.DataFrame([data]) 
+        else:
+            df = pd.DataFrame(data)
+            
+        if df.empty:
+            return df
         
         if 'No PKB' in df.columns and 'No Polisi' in df.columns:
             df['Identifier'] = df.apply(lambda x: str(x['No PKB']).strip() if str(x.get('No PKB', '')).strip() not in ['', '-', 'BELUM ADA', 'nan'] else str(x.get('No Polisi', '')).strip(), axis=1)
